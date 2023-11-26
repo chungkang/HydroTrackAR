@@ -32,7 +32,8 @@ import com.google.ar.core.examples.java.common.samplerender.Texture
 import com.google.ar.core.examples.java.common.samplerender.arcore.BackgroundRenderer
 import com.google.ar.core.exceptions.CameraNotAvailableException
 import java.io.IOException
-
+import java.io.InputStream
+import java.io.OutputStream
 
 class HelloGeoRenderer(val activity: HelloGeoActivity) :
   SampleRender.Renderer, DefaultLifecycleObserver {
