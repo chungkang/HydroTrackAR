@@ -15,6 +15,8 @@
  */
 package com.google.ar.core.codelabs.hellogeospatial.helpers
 
+import android.content.Context
+import android.hardware.usb.UsbManager
 import android.opengl.GLSurfaceView
 import android.view.View
 import android.widget.TextView
@@ -52,23 +54,57 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
     }
 
   val statusText = root.findViewById<TextView>(R.id.statusText)
-  fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
-    activity.runOnUiThread {
-      val poseText = if (cameraGeospatialPose == null) "" else
-        activity.getString(R.string.geospatial_pose,
-                           cameraGeospatialPose.latitude,
-                           cameraGeospatialPose.longitude,
-                           cameraGeospatialPose.horizontalAccuracy,
-                           cameraGeospatialPose.altitude,
-                           cameraGeospatialPose.verticalAccuracy,
-                           cameraGeospatialPose.heading,
-                           cameraGeospatialPose.headingAccuracy)
-      statusText.text = activity.resources.getString(R.string.earth_state,
-                                                     earth.earthState.toString(),
-                                                     earth.trackingState.toString(),
-                                                     poseText)
+//  fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
+//    activity.runOnUiThread {
+//      val poseText = if (cameraGeospatialPose == null) "" else
+//        activity.getString(R.string.geospatial_pose,
+//                           cameraGeospatialPose.latitude,
+//                           cameraGeospatialPose.longitude,
+//                           cameraGeospatialPose.horizontalAccuracy,
+//                           cameraGeospatialPose.altitude,
+//                           cameraGeospatialPose.verticalAccuracy,
+//                           cameraGeospatialPose.heading,
+//                           cameraGeospatialPose.headingAccuracy)
+//
+//      statusText.text = activity.resources.getString(R.string.earth_state,
+//                                                     earth.earthState.toString(),
+//                                                     earth.trackingState.toString(),
+//                                                     poseText) + "_test"
+//    }
+//  }
+
+
+    fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
+        activity.runOnUiThread {
+            val poseText = if (cameraGeospatialPose == null) "" else
+                activity.getString(R.string.geospatial_pose,
+                    cameraGeospatialPose.latitude,
+                    cameraGeospatialPose.longitude,
+                    cameraGeospatialPose.horizontalAccuracy,
+                    cameraGeospatialPose.altitude,
+                    cameraGeospatialPose.verticalAccuracy,
+                    cameraGeospatialPose.heading,
+                    cameraGeospatialPose.headingAccuracy)
+            val earthStateText = activity.resources.getString(R.string.earth_state,
+                earth.earthState.toString(),
+                earth.trackingState.toString(),
+                poseText)
+
+            // USB 장치 확인
+            val usbManager = activity.getSystemService(Context.USB_SERVICE) as UsbManager
+            val deviceList = usbManager.deviceList
+            val usbDevicesText = if (deviceList.isEmpty()) {
+                "No USB devices connected."
+            } else {
+                deviceList.values.joinToString(separator = "\n") { device ->
+                    "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}"
+                }
+            }
+
+            // 상태 텍스트 업데이트
+            statusText.text = "$earthStateText\nUSB Devices:\n$usbDevicesText"
+        }
     }
-  }
 
   override fun onResume(owner: LifecycleOwner) {
     surfaceView.onResume()
