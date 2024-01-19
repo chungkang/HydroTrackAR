@@ -72,16 +72,28 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
         }
     }
 
+    // Convert NMEA latitude/longitude to decimal degrees
+    private fun convertToDecimalDegrees(coordinate: String, direction: String): Double? {
+        return try {
+            val degrees = coordinate.substring(0, 2).toDouble()
+            val minutes = coordinate.substring(2).toDouble()
+            val decimalDegrees = degrees + minutes / 60.0
+            if (direction == "S" || direction == "W") -decimalDegrees else decimalDegrees
+        } catch (e: NumberFormatException) {
+            null
+        }
+    }
+
     // Improved NMEA data parsing method
-    private fun parseNmeaData(nmeaData: String): Pair<String, String> {
+    private fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
         val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),(N|S),([0-9.]+),(E|W),""")
         val matcher: Matcher = pattern.matcher(nmeaData)
         if (matcher.find()) {
-            val latitude = matcher.group(1) + " " + matcher.group(2)
-            val longitude = matcher.group(3) + " " + matcher.group(4)
+            val latitude = convertToDecimalDegrees(matcher.group(1), matcher.group(2))
+            val longitude = convertToDecimalDegrees(matcher.group(3), matcher.group(4))
             return Pair(latitude, longitude)
         }
-        return Pair("No X", "No Y")
+        return Pair(null, null)
     }
 
     val session
@@ -125,13 +137,9 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
                 "No USB devices connected."
             } else {
                 val nmeaData = setupUsbSerial()
-                val coordinates = parseNmeaData(nmeaData)
-                val formattedCoordinates = '1'
-//                val formattedCoordinates = "x: ${coordinates.second}, y: ${coordinates.first}"
-
                 deviceList.values.joinToString(separator = "\n") { device ->
                     "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}"
-//                    "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}, NMEA: ${nmeaData}, Coordinates: ${formattedCoordinates}"
+//                    "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}, NMEA: ${nmeaData}"
                 }
             }
 
