@@ -45,25 +45,6 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
   val root = View.inflate(activity, R.layout.activity_main, null)
   val surfaceView = root.findViewById<GLSurfaceView>(R.id.surfaceview)
 
-  val session
-    get() = activity.arCoreSessionHelper.session
-
-  val snackbarHelper = SnackbarHelper()
-
-  var mapView: MapView? = null
-  val mapTouchWrapper = root.findViewById<MapTouchWrapper>(R.id.map_wrapper).apply {
-    setup { screenLocation ->
-      val latLng: LatLng =
-        mapView?.googleMap?.projection?.fromScreenLocation(screenLocation) ?: return@setup
-      activity.renderer.onMapClick(latLng)
-    }
-  }
-  val mapFragment =
-    (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
-      it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
-    }
-
-  val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     // Method to setup USB serial communication
     // Improved method for USB serial setup and reading data
     private fun setupUsbSerial(): String {
@@ -74,52 +55,18 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
         }
 
         val driver = availableDrivers[0]
-        val connection = manager.openDevice(driver.device)
-        if (connection == null) {
-            return "Error: Connection is null"
-        }
+        val connection = manager.openDevice(driver.device) ?: return "Error: Connection is null"
 
         val port = driver.ports[0]
-        try {
+        return try {
             port.open(connection)
-            port.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+            port.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
 
             val buffer = ByteArray(1024)
             val numBytesRead = port.read(buffer, 1000)
-            return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+            String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
         } catch (e: IOException) {
-            return "Error reading from device: ${e.message}"
-        } finally {
-            port.close()
-        }
-    }
-
-    // Method to read NMEA data from a USB device
-    private fun readNmeaDataFromUsb(device: UsbDevice, usbManager: UsbManager): String {
-        // Open a connection to the USB device and set up the serial port
-        val connection = usbManager.openDevice(device)
-        if (connection == null) {
-            Log.d("USB", "Connection is null")
-            return "Error: Could not connect to device"
-        }
-
-        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
-        if (availableDrivers.isEmpty()) {
-            return "Error: No USB drivers available"
-        }
-
-        val driver = availableDrivers[0]
-        val port = driver.ports[0]
-        try {
-            port.open(connection)
-            port.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-
-            val buffer = ByteArray(1024)
-            val numBytesRead = port.read(buffer, 1000)
-            return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
-        } catch (e: IOException) {
-            Log.e("USB", "Error reading from device: ${e.message}")
-            return "Error: ${e.message}"
+            "Error reading from device: ${e.message}"
         } finally {
             port.close()
         }
@@ -134,9 +81,28 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
             val longitude = matcher.group(3) + " " + matcher.group(4)
             return Pair(latitude, longitude)
         }
-        return Pair("Not found", "Not found")
+        return Pair("No X", "No Y")
     }
 
+    val session
+    get() = activity.arCoreSessionHelper.session
+
+  val snackbarHelper = SnackbarHelper()
+
+  var mapView: MapView? = null
+  val mapTouchWrapper: MapTouchWrapper = root.findViewById<MapTouchWrapper>(R.id.map_wrapper).apply {
+    setup { screenLocation ->
+      val latLng: LatLng =
+        mapView?.googleMap?.projection?.fromScreenLocation(screenLocation) ?: return@setup
+      activity.renderer.onMapClick(latLng)
+    }
+  }
+  val mapFragment =
+    (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
+      it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
+    }
+
+  private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
         activity.runOnUiThread {
             val poseText = if (cameraGeospatialPose == null) "" else
@@ -160,15 +126,17 @@ class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
             } else {
                 val nmeaData = setupUsbSerial()
                 val coordinates = parseNmeaData(nmeaData)
-                val formattedCoordinates = "x: ${coordinates.second}, y: ${coordinates.first}"
+                val formattedCoordinates = '1'
+//                val formattedCoordinates = "x: ${coordinates.second}, y: ${coordinates.first}"
 
                 deviceList.values.joinToString(separator = "\n") { device ->
                     "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}"
-                } + "\nCoordinates: $formattedCoordinates"
+//                    "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}, NMEA: ${nmeaData}, Coordinates: ${formattedCoordinates}"
+                }
             }
 
             // Update status text with earth state, USB devices, and coordinates
-            statusText.text = "$earthStateText\nUSB Devices:\n$usbDevicesText"
+            statusText.text = "$earthStateText\n$usbDevicesText"
                 }
             }
 
