@@ -39,7 +39,7 @@
       tools:ignore="GoogleAppIndexingWarning">
 
     <activity
-        android:name=".HelloGeoActivity"
+        android:name=".HydroTrackARActivity"
         android:configChanges="orientation|screenSize"
         android:exported="true"
         android:theme="@style/Theme.AppCompat.NoActionBar"

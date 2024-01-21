@@ -16,10 +16,8 @@
 package com.google.ar.core.codelabs.hellogeospatial.helpers
 
 import android.content.Context
-import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.opengl.GLSurfaceView
-import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -28,10 +26,9 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.ar.core.Earth
 import com.google.ar.core.GeospatialPose
-import com.google.ar.core.codelabs.hellogeospatial.HelloGeoActivity
+import com.google.ar.core.codelabs.hellogeospatial.HydroTrackARActivity
 import com.google.ar.core.codelabs.hellogeospatial.R
 import com.google.ar.core.examples.java.common.helpers.SnackbarHelper
-import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
 import java.io.IOException
@@ -41,7 +38,7 @@ import java.util.regex.Pattern
 
 
 /** Contains UI elements for Hello Geo. */
-class HelloGeoView(val activity: HelloGeoActivity) : DefaultLifecycleObserver {
+class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObserver {
   val root = View.inflate(activity, R.layout.activity_main, null)
   val surfaceView = root.findViewById<GLSurfaceView>(R.id.surfaceview)
 

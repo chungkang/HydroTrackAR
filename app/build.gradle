@@ -52,4 +52,6 @@ dependencies {
     implementation 'com.google.android.gms:play-services-maps:18.0.2'
     implementation 'com.google.code.gson:gson:2.8.9'
     implementation 'com.github.mik3y:usb-serial-for-android:3.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.0'
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1" // 버전은 최신 버전으로 설정
 }

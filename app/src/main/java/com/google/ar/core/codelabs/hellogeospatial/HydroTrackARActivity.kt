@@ -23,7 +23,7 @@ import com.google.ar.core.Config
 import com.google.ar.core.Session
 import com.google.ar.core.codelabs.hellogeospatial.helpers.ARCoreSessionLifecycleHelper
 import com.google.ar.core.codelabs.hellogeospatial.helpers.GeoPermissionsHelper
-import com.google.ar.core.codelabs.hellogeospatial.helpers.HelloGeoView
+import com.google.ar.core.codelabs.hellogeospatial.helpers.HydroTrackARView
 import com.google.ar.core.examples.java.common.helpers.FullScreenHelper
 import com.google.ar.core.examples.java.common.samplerender.SampleRender
 import com.google.ar.core.exceptions.CameraNotAvailableException
@@ -32,14 +32,14 @@ import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
 
-class HelloGeoActivity : AppCompatActivity() {
+class HydroTrackARActivity : AppCompatActivity() {
   companion object {
     private const val TAG = "HelloGeoActivity"
   }
 
   lateinit var arCoreSessionHelper: ARCoreSessionLifecycleHelper
-  lateinit var view: HelloGeoView
-  lateinit var renderer: HelloGeoRenderer
+  lateinit var view: HydroTrackARView
+  lateinit var renderer: HydroTrackARRenderer
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -69,11 +69,11 @@ class HelloGeoActivity : AppCompatActivity() {
     lifecycle.addObserver(arCoreSessionHelper)
 
     // Set up the Hello AR renderer.
-    renderer = HelloGeoRenderer(this)
+    renderer = HydroTrackARRenderer(this)
     lifecycle.addObserver(renderer)
 
     // Set up Hello AR UI.
-    view = HelloGeoView(this)
+    view = HydroTrackARView(this)
     lifecycle.addObserver(view)
     setContentView(view.root)
 

@@ -17,7 +17,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".HelloGeoActivity">
+    tools:context=".HydroTrackARActivity">
 
   <android.opengl.GLSurfaceView
       android:id="@+id/surfaceview"
@@ -36,7 +36,7 @@
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".HelloGeoActivity" />
+        tools:context=".HydroTrackARActivity" />
     <TextView
         android:padding="8dp"
         android:textColor="@android:color/black"

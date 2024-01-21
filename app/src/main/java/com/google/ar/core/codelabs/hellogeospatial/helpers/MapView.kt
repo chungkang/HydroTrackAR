@@ -21,7 +21,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LightingColorFilter
 import android.graphics.Paint
-import android.util.Log
 import androidx.annotation.ColorInt
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -30,10 +29,10 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.ar.core.codelabs.hellogeospatial.HelloGeoActivity
+import com.google.ar.core.codelabs.hellogeospatial.HydroTrackARActivity
 import com.google.ar.core.codelabs.hellogeospatial.R
 
-class MapView(val activity: HelloGeoActivity, val googleMap: GoogleMap) {
+class MapView(val activity: HydroTrackARActivity, val googleMap: GoogleMap) {
   private val CAMERA_MARKER_COLOR: Int = Color.argb(255, 0, 255, 0)
   private val EARTH_MARKER_COLOR: Int = Color.argb(255, 125, 125, 125)
 
