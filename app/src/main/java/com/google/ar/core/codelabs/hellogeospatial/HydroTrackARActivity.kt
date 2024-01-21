@@ -15,6 +15,8 @@
  */
 package com.google.ar.core.codelabs.hellogeospatial
 
+import android.content.Context
+import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -31,6 +33,12 @@ import com.google.ar.core.exceptions.UnavailableApkTooOldException
 import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
+import com.hoho.android.usbserial.driver.UsbSerialPort
+import com.hoho.android.usbserial.driver.UsbSerialProber
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 class HydroTrackARActivity : AppCompatActivity() {
   companion object {
@@ -113,5 +121,57 @@ class HydroTrackARActivity : AppCompatActivity() {
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
     FullScreenHelper.setFullScreenOnWindowFocusChanged(this, hasFocus)
+  }
+
+
+  // Method to setup USB serial communication
+  // Improved method for USB serial setup and reading data
+  fun setupUsbSerial(): String {
+    val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+    val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
+    if (availableDrivers.isEmpty()) {
+      return "Error: No USB drivers available"
+    }
+
+    val driver = availableDrivers[0]
+    val connection = manager.openDevice(driver.device) ?: return "Error: Connection is null"
+
+    val port = driver.ports[0]
+    return try {
+      port.open(connection)
+      port.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+
+      val buffer = ByteArray(1024)
+      val numBytesRead = port.read(buffer, 1000)
+      String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+    } catch (e: IOException) {
+      "Error reading from device: ${e.message}"
+    } finally {
+      port.close()
+    }
+  }
+
+  // Convert NMEA latitude/longitude to decimal degrees
+  fun convertToDecimalDegrees(coordinate: String, direction: String): Double? {
+    return try {
+      val degrees = coordinate.substring(0, 2).toDouble()
+      val minutes = coordinate.substring(2).toDouble()
+      val decimalDegrees = degrees + minutes / 60.0
+      if (direction == "S" || direction == "W") -decimalDegrees else decimalDegrees
+    } catch (e: NumberFormatException) {
+      null
+    }
+  }
+
+  // Improved NMEA data parsing method
+  fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
+    val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),(N|S),([0-9.]+),(E|W),""")
+    val matcher: Matcher = pattern.matcher(nmeaData)
+    if (matcher.find()) {
+      val latitude = convertToDecimalDegrees(matcher.group(1), matcher.group(2))
+      val longitude = convertToDecimalDegrees(matcher.group(3), matcher.group(4))
+      return Pair(latitude, longitude)
+    }
+    return Pair(null, null)
   }
 }
