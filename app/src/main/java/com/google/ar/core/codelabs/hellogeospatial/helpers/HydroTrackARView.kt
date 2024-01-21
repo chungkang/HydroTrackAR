@@ -30,13 +30,6 @@ import com.google.ar.core.GeospatialPose
 import com.google.ar.core.codelabs.hellogeospatial.HydroTrackARActivity
 import com.google.ar.core.codelabs.hellogeospatial.R
 import com.google.ar.core.examples.java.common.helpers.SnackbarHelper
-import com.hoho.android.usbserial.driver.UsbSerialPort;
-import com.hoho.android.usbserial.driver.UsbSerialProber;
-import java.io.IOException
-import java.nio.charset.StandardCharsets
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-
 
 /** Contains UI elements for Hello Geo. */
 class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObserver {

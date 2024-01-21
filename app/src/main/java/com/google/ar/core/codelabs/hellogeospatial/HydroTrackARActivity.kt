@@ -18,6 +18,8 @@ package com.google.ar.core.codelabs.hellogeospatial
 import android.content.Context
 import android.hardware.usb.UsbManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -41,6 +43,10 @@ import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 class HydroTrackARActivity : AppCompatActivity() {
+  // 백그라운드 핸들러와 스레드
+  private lateinit var backgroundHandler: Handler
+  private lateinit var backgroundThread: HandlerThread
+
   companion object {
     private const val TAG = "HelloGeoActivity"
   }
@@ -72,30 +78,12 @@ class HydroTrackARActivity : AppCompatActivity() {
         view.snackbarHelper.showError(this, message)
       }
 
-    // 추가: USB에서 읽은 NMEA 데이터를 저장하는 변수
-    var nmeaData: String? = null
+    // 백그라운드 스레드 초기화
+    backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
+    backgroundHandler = Handler(backgroundThread.looper)
 
-    // 추가: USB로부터 NMEA 데이터를 읽어와 저장하는 메서드
-    fun readNmeaDataFromUsb() {
-      nmeaData = setupUsbSerial() // setupUsbSerial()는 USB로부터 데이터를 읽는 메서드입니다.
-    }
-
-    // 추가: NMEA 데이터를 해석하여 위치 정보를 업데이트하는 메서드
-    fun updateLocationFromNmeaData() {
-      nmeaData?.let { nmeaData ->
-        val (latitude, longitude) = parseNmeaData(nmeaData) // parseNmeaData()는 NMEA 데이터를 파싱하는 메서드입니다.
-        if (latitude != null && longitude != null) {
-          // 위치 정보를 AR 화면 및 mapView에 적용하는 코드
-          // 예를 들어, HydroTrackARRenderer나 MapView 클래스 내에서 위치 정보를 업데이트할 수 있습니다.
-
-          // AR 화면 업데이트 예시:
-//          renderer.updateLocation(latitude, longitude)
-
-          // mapView 업데이트 예시:
-          view?.updateLocation(latitude, longitude)
-        }
-      }
-    }
+    // 백그라운드 스레드에서 USB 데이터 읽기 시작
+    backgroundHandler.post { readNmeaDataFromUsb() }
 
     // Configure session features.
     arCoreSessionHelper.beforeSessionResume = ::configureSession
@@ -112,6 +100,28 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     // Sets up an example renderer using our HelloGeoRenderer.
     SampleRender(view.surfaceView, renderer, assets)
+  }
+
+  // 백그라운드에서 실행되는 USB 데이터 읽기 메서드
+  private fun readNmeaDataFromUsb() {
+    // 기존 readNmeaDataFromUsb 로직 ...
+    // 데이터를 읽은 후 위치 정보 업데이트
+    updateLocationFromNmeaData()
+  }
+
+  // 위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
+  private fun updateLocationFromNmeaData() {
+    // 기존 updateLocationFromNmeaData 로직 ...
+    // UI 업데이트는 메인 스레드에서 실행
+    runOnUiThread {
+      // 예: view.updateLocation(latitude, longitude)
+    }
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
+    // 백그라운드 스레드 정리
+    backgroundThread.quitSafely()
   }
 
   // Configure the session, setting the desired options according to your usecase.
