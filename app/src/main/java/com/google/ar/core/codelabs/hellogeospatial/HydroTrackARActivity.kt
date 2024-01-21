@@ -72,6 +72,31 @@ class HydroTrackARActivity : AppCompatActivity() {
         view.snackbarHelper.showError(this, message)
       }
 
+    // 추가: USB에서 읽은 NMEA 데이터를 저장하는 변수
+    var nmeaData: String? = null
+
+    // 추가: USB로부터 NMEA 데이터를 읽어와 저장하는 메서드
+    fun readNmeaDataFromUsb() {
+      nmeaData = setupUsbSerial() // setupUsbSerial()는 USB로부터 데이터를 읽는 메서드입니다.
+    }
+
+    // 추가: NMEA 데이터를 해석하여 위치 정보를 업데이트하는 메서드
+    fun updateLocationFromNmeaData() {
+      nmeaData?.let { nmeaData ->
+        val (latitude, longitude) = parseNmeaData(nmeaData) // parseNmeaData()는 NMEA 데이터를 파싱하는 메서드입니다.
+        if (latitude != null && longitude != null) {
+          // 위치 정보를 AR 화면 및 mapView에 적용하는 코드
+          // 예를 들어, HydroTrackARRenderer나 MapView 클래스 내에서 위치 정보를 업데이트할 수 있습니다.
+
+          // AR 화면 업데이트 예시:
+//          renderer.updateLocation(latitude, longitude)
+
+          // mapView 업데이트 예시:
+          view?.updateLocation(latitude, longitude)
+        }
+      }
+    }
+
     // Configure session features.
     arCoreSessionHelper.beforeSessionResume = ::configureSession
     lifecycle.addObserver(arCoreSessionHelper)

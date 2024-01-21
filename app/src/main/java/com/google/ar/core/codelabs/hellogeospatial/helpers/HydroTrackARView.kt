@@ -22,6 +22,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.ar.core.Earth
@@ -92,8 +93,14 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
             // Update status text with earth state, USB devices, and coordinates
             statusText.text = "$earthStateText\n$usbDevicesText"
                 }
-            }
 
+            }
+    // 추가: mapView 위치 정보 업데이트 메서드
+    fun updateLocation(latitude: Double, longitude: Double) {
+        // mapView의 위치 정보를 업데이트하는 코드를 작성합니다.
+        val newLatLng = LatLng(latitude, longitude)
+        mapView?.googleMap?.moveCamera(CameraUpdateFactory.newLatLng(newLatLng))
+    }
 
   override fun onResume(owner: LifecycleOwner) {
     surfaceView.onResume()
