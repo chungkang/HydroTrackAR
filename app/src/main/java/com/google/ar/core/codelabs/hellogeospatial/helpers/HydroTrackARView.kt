@@ -60,12 +60,19 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
       it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
     }
 
-    fun updateUsbLocationText(usbLatitude: Double, usbLongitude: Double) {
-        val usbLocationText = "USB Location: Latitude = $usbLatitude, Longitude = $usbLongitude"
+//    fun updateUsbLocationText(usbLatitude: Double, usbLongitude: Double) {
+//        val usbLocationText = "USB Location: Latitude = $usbLatitude, Longitude = $usbLongitude"
+//        activity.runOnUiThread {
+//            statusText.text = "${statusText.text}\n$usbLocationText"
+//        }
+//    }
+
+    fun updateUsbLocationText(nmeaData: String) {
         activity.runOnUiThread {
-            statusText.text = "${statusText.text}\n$usbLocationText"
+            statusText.text = "${statusText.text}\n$nmeaData"
         }
     }
+
 
   private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {

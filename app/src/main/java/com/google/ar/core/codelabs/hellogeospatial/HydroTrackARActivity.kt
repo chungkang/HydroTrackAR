@@ -96,7 +96,7 @@ class HydroTrackARActivity : AppCompatActivity() {
             getLocationFromNmeaData(nmeaData)
           }
         }
-        backgroundHandler.postDelayed(this, 5000)
+        backgroundHandler.postDelayed(this, 1000)
       }
     })
 
@@ -120,13 +120,24 @@ class HydroTrackARActivity : AppCompatActivity() {
   }
 
 //   위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
+//  private fun getLocationFromNmeaData(nmeaData: String) {
+//    val (latitude, longitude) = parseNmeaData(nmeaData)
+//    if (latitude != null && longitude != null) {
+//      runOnUiThread {
+//        // UI 업데이트
+//        view.updateUsbLocationText(latitude, longitude)
+//        //        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
+//      }
+//    }
+//  }
+
+  var currentGPGGAData: String? = null
+
   private fun getLocationFromNmeaData(nmeaData: String) {
-    val (latitude, longitude) = parseNmeaData(nmeaData)
-    if (latitude != null && longitude != null) {
+    val prefixNMEA = "\$GPGGA" // GPGGA 값을 문자열 리터럴로 정의
+    if (nmeaData.startsWith(prefixNMEA)) {
       runOnUiThread {
-        // UI 업데이트
-        view.updateUsbLocationText(latitude, longitude)
-        //        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
+        view.updateUsbLocationText(nmeaData)
       }
     }
   }
@@ -176,6 +187,10 @@ class HydroTrackARActivity : AppCompatActivity() {
   // Improved method for USB serial setup and reading data
   // USB 연결 설정 메서드
   private fun setupUsbSerial() {
+    if (usbSerialPort != null) {
+      return // 포트가 이미 설정된 경우, 다시 설정하지 않음
+    }
+
     val manager = getSystemService(Context.USB_SERVICE) as UsbManager
     val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
     if (availableDrivers.isEmpty()) {
@@ -197,6 +212,7 @@ class HydroTrackARActivity : AppCompatActivity() {
       port.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
     } catch (e: IOException) {
       Log.e(TAG, "Error setting up device: ${e.message}")
+      usbSerialPort = null
       port.close()
     }
   }

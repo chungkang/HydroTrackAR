@@ -47,11 +47,11 @@
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
-<!--        <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />-->
+        <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
       </intent-filter>
-<!--      <meta-data-->
-<!--          android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"-->
-<!--          android:resource="@xml/device_filter" />-->
+      <meta-data
+          android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+          android:resource="@xml/device_filter" />
     </activity>
     <!-- Indicates whether "Google Play Services for AR" (ARCore) is "required" or "optional". -->
     <meta-data android:name="com.google.ar.core" android:value="required" />
