@@ -39,6 +39,12 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
     val session
     get() = activity.arCoreSessionHelper.session
 
+    // USB를 통해 읽은 지리적 위치 데이터를 저장할 데이터 클래스
+    data class UsbGeospatialPose(var latitude: Double, var longitude: Double)
+
+    // USB에서 읽은 위치 정보를 저장할 변수
+    var usbGeospatialPose: UsbGeospatialPose? = null
+
   val snackbarHelper = SnackbarHelper()
 
   var mapView: MapView? = null
@@ -52,6 +58,13 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
   val mapFragment =
     (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
       it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
+    }
+
+    fun updateUsbLocationText(usbLatitude: Double, usbLongitude: Double) {
+        val usbLocationText = "USB Location: Latitude = $usbLatitude, Longitude = $usbLongitude"
+        activity.runOnUiThread {
+            statusText.text = "${statusText.text}\n$usbLocationText"
+        }
     }
 
   private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)

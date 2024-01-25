@@ -37,6 +37,6 @@
     <usb-device vendor-id="6790" product-id="21972" /><!-- 0x1A86 / 0x55D4: Qinheng CH9102F -->
 
     <!-- GNSS -->
-    <usb-device vendor-id="5446" product-id="423"  />
-    <usb-device vendor-id="11914" product-id="424"  />
+<!--    <usb-device vendor-id="5446" product-id="423"  />-->
+<!--    <usb-device vendor-id="11914" product-id="424"  />-->
 </resources>

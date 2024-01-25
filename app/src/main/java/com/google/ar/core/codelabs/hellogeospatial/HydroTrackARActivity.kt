@@ -83,7 +83,7 @@ class HydroTrackARActivity : AppCompatActivity() {
     backgroundHandler = Handler(backgroundThread.looper)
 
     // 백그라운드 스레드에서 USB 데이터 읽기 시작
-    backgroundHandler.post { readNmeaDataFromUsb() }
+    backgroundHandler.post { setupUsbSerial() }
 
     // Configure session features.
     arCoreSessionHelper.beforeSessionResume = ::configureSession
@@ -100,21 +100,30 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     // Sets up an example renderer using our HelloGeoRenderer.
     SampleRender(view.surfaceView, renderer, assets)
-  }
 
-  // 백그라운드에서 실행되는 USB 데이터 읽기 메서드
-  private fun readNmeaDataFromUsb() {
-    // 기존 readNmeaDataFromUsb 로직 ...
-    // 데이터를 읽은 후 위치 정보 업데이트
-    updateLocationFromNmeaData()
+    // 백그라운드 스레드에서 주기적으로 위치 정보 업데이트 실행
+    backgroundHandler.post(object : Runnable {
+      override fun run() {
+        getLocationFromNmeaData()
+        // 예를 들어, 5초마다 반복
+        backgroundHandler.postDelayed(this, 5000)
+      }
+    })
   }
 
   // 위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
-  private fun updateLocationFromNmeaData() {
-    // 기존 updateLocationFromNmeaData 로직 ...
-    // UI 업데이트는 메인 스레드에서 실행
-    runOnUiThread {
-      // 예: view.updateLocation(latitude, longitude)
+  private fun getLocationFromNmeaData() {
+    // USB에서 읽은 NMEA 데이터 파싱
+    val nmeaData = setupUsbSerial()
+    val (latitude, longitude) = parseNmeaData(nmeaData)
+
+    // 파싱된 위치 데이터를 HydroTrackARView의 usbGeospatialPose에 저장
+    if (latitude != null && longitude != null) {
+      runOnUiThread {
+//        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
+        // 필요한 경우, 추가적인 UI 업데이트 수행
+        view.updateUsbLocationText(latitude, longitude)
+      }
     }
   }
 
