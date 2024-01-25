@@ -55,6 +55,8 @@ class HydroTrackARActivity : AppCompatActivity() {
   lateinit var view: HydroTrackARView
   lateinit var renderer: HydroTrackARRenderer
 
+  private var usbSerialPort: UsbSerialPort? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
@@ -82,8 +84,22 @@ class HydroTrackARActivity : AppCompatActivity() {
     backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
     backgroundHandler = Handler(backgroundThread.looper)
 
-    // 백그라운드 스레드에서 USB 데이터 읽기 시작
-    backgroundHandler.post { setupUsbSerial() }
+    // USB 연결 설정
+    setupUsbSerial()
+
+    // 백그라운드 스레드에서 주기적으로 NMEA 데이터 읽기
+    backgroundHandler.post(object : Runnable {
+      override fun run() {
+        if (usbSerialPort != null) {
+          val nmeaData = readNmeaData()
+          if (nmeaData.isNotEmpty()) {
+            getLocationFromNmeaData(nmeaData)
+          }
+        }
+        backgroundHandler.postDelayed(this, 5000)
+      }
+    })
+
 
     // Configure session features.
     arCoreSessionHelper.beforeSessionResume = ::configureSession
@@ -101,35 +117,23 @@ class HydroTrackARActivity : AppCompatActivity() {
     // Sets up an example renderer using our HelloGeoRenderer.
     SampleRender(view.surfaceView, renderer, assets)
 
-    // 백그라운드 스레드에서 주기적으로 위치 정보 업데이트 실행
-    backgroundHandler.post(object : Runnable {
-      override fun run() {
-        getLocationFromNmeaData()
-        // 예를 들어, 5초마다 반복
-        backgroundHandler.postDelayed(this, 5000)
-      }
-    })
   }
 
-  // 위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
-  private fun getLocationFromNmeaData() {
-    // USB에서 읽은 NMEA 데이터 파싱
-    val nmeaData = setupUsbSerial()
+//   위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
+  private fun getLocationFromNmeaData(nmeaData: String) {
     val (latitude, longitude) = parseNmeaData(nmeaData)
-
-    // 파싱된 위치 데이터를 HydroTrackARView의 usbGeospatialPose에 저장
     if (latitude != null && longitude != null) {
       runOnUiThread {
-//        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
-        // 필요한 경우, 추가적인 UI 업데이트 수행
+        // UI 업데이트
         view.updateUsbLocationText(latitude, longitude)
+        //        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
       }
     }
   }
 
   override fun onDestroy() {
     super.onDestroy()
-    // 백그라운드 스레드 정리
+    usbSerialPort?.close()
     backgroundThread.quitSafely()
   }
 
@@ -170,29 +174,46 @@ class HydroTrackARActivity : AppCompatActivity() {
 
   // Method to setup USB serial communication
   // Improved method for USB serial setup and reading data
-  fun setupUsbSerial(): String {
+  // USB 연결 설정 메서드
+  private fun setupUsbSerial() {
     val manager = getSystemService(Context.USB_SERVICE) as UsbManager
     val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
     if (availableDrivers.isEmpty()) {
-      return "Error: No USB drivers available"
+      Log.e(TAG, "Error: No USB drivers available")
+      return
     }
 
     val driver = availableDrivers[0]
-    val connection = manager.openDevice(driver.device) ?: return "Error: Connection is null"
+    val connection = manager.openDevice(driver.device)
+    if (connection == null) {
+      Log.e(TAG, "Error: Connection is null")
+      return
+    }
 
     val port = driver.ports[0]
-    return try {
+    try {
+      usbSerialPort = port
       port.open(connection)
       port.setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-
-      val buffer = ByteArray(1024)
-      val numBytesRead = port.read(buffer, 1000)
-      String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
     } catch (e: IOException) {
-      "Error reading from device: ${e.message}"
-    } finally {
+      Log.e(TAG, "Error setting up device: ${e.message}")
       port.close()
     }
+  }
+
+  // USB 장치로부터 데이터를 읽는 메서드
+  private fun readNmeaData(): String {
+    usbSerialPort?.let { port ->
+      try {
+        val buffer = ByteArray(1024)
+        val numBytesRead = port.read(buffer, 1000)
+        return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+      } catch (e: IOException) {
+        Log.e(TAG, "Error reading from device: ${e.message}")
+        return ""
+      }
+    }
+    return ""
   }
 
   // Convert NMEA latitude/longitude to decimal degrees

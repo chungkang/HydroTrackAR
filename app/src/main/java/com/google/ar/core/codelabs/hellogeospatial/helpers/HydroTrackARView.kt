@@ -89,10 +89,8 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
             val usbDevicesText = if (deviceList.isEmpty()) {
                 "No USB devices connected."
             } else {
-                val nmeaData = activity.setupUsbSerial()
                 deviceList.values.joinToString(separator = "\n") { device ->
                     "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}"
-//                    "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}, NMEA: ${nmeaData}"
                 }
             }
 
