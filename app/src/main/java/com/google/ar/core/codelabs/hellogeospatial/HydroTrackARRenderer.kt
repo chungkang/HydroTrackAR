@@ -183,6 +183,7 @@ class HydroTrackARRenderer(val activity: HydroTrackARActivity) :
         longitude = cameraGeospatialPose.longitude,
         heading = cameraGeospatialPose.heading
       )
+      val usbGeospatialPose = earth.cameraGeospatialPose
     }
     if (earth != null) {
       activity.view.updateStatusText(earth, earth.cameraGeospatialPose)

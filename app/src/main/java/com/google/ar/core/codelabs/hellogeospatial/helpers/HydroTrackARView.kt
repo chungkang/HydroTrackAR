@@ -31,19 +31,13 @@ import com.google.ar.core.codelabs.hellogeospatial.HydroTrackARActivity
 import com.google.ar.core.codelabs.hellogeospatial.R
 import com.google.ar.core.examples.java.common.helpers.SnackbarHelper
 
-/** Contains UI elements for Hello Geo. */
+/** Contains UI elements */
 class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObserver {
   val root = View.inflate(activity, R.layout.activity_main, null)
   val surfaceView = root.findViewById<GLSurfaceView>(R.id.surfaceview)
 
     val session
     get() = activity.arCoreSessionHelper.session
-
-    // USB를 통해 읽은 지리적 위치 데이터를 저장할 데이터 클래스
-    data class UsbGeospatialPose(var latitude: Double, var longitude: Double)
-
-    // USB에서 읽은 위치 정보를 저장할 변수
-    var usbGeospatialPose: UsbGeospatialPose? = null
 
   val snackbarHelper = SnackbarHelper()
 
@@ -59,20 +53,6 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
     (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
       it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
     }
-
-//    fun updateUsbLocationText(usbLatitude: Double, usbLongitude: Double) {
-//        val usbLocationText = "USB Location: Latitude = $usbLatitude, Longitude = $usbLongitude"
-//        activity.runOnUiThread {
-//            statusText.text = "${statusText.text}\n$usbLocationText"
-//        }
-//    }
-
-    fun updateUsbLocationText(nmeaData: String) {
-        activity.runOnUiThread {
-            statusText.text = "${statusText.text}\n$nmeaData"
-        }
-    }
-
 
   private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {

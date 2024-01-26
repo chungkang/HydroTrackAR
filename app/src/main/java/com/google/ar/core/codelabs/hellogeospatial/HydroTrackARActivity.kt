@@ -46,102 +46,82 @@ class HydroTrackARActivity : AppCompatActivity() {
   // 백그라운드 핸들러와 스레드
   private lateinit var backgroundHandler: Handler
   private lateinit var backgroundThread: HandlerThread
-
-  companion object {
-    private const val TAG = "HelloGeoActivity"
-  }
-
+  private var usbSerialPort: UsbSerialPort? = null
   lateinit var arCoreSessionHelper: ARCoreSessionLifecycleHelper
   lateinit var view: HydroTrackARView
   lateinit var renderer: HydroTrackARRenderer
 
-  private var usbSerialPort: UsbSerialPort? = null
+  companion object {
+    private const val TAG = "HydroTrackARActivity"
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-
-    // Setup ARCore session lifecycle helper and configuration.
-    arCoreSessionHelper = ARCoreSessionLifecycleHelper(this)
-    // If Session creation or Session.resume() fails, display a message and log detailed
-    // information.
-    arCoreSessionHelper.exceptionCallback =
-      { exception ->
-        val message =
-          when (exception) {
-            is UnavailableUserDeclinedInstallationException ->
-              "Please install Google Play Services for AR"
-            is UnavailableApkTooOldException -> "Please update ARCore"
-            is UnavailableSdkTooOldException -> "Please update this app"
-            is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
-            is CameraNotAvailableException -> "Camera not available. Try restarting the app."
-            else -> "Failed to create AR session: $exception"
-          }
-        Log.e(TAG, "ARCore threw an exception", exception)
-        view.snackbarHelper.showError(this, message)
-      }
-
-    // 백그라운드 스레드 초기화
-    backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
-    backgroundHandler = Handler(backgroundThread.looper)
-
-    // USB 연결 설정
+    initializeARCoreSession()
+    initializeBackgroundThread()
     setupUsbSerial()
-
-    // 백그라운드 스레드에서 주기적으로 NMEA 데이터 읽기
-    backgroundHandler.post(object : Runnable {
-      override fun run() {
-        if (usbSerialPort != null) {
-          val nmeaData = readNmeaData()
-          if (nmeaData.isNotEmpty()) {
-            getLocationFromNmeaData(nmeaData)
-          }
-        }
-        backgroundHandler.postDelayed(this, 1000)
-      }
-    })
-
-
-    // Configure session features.
-    arCoreSessionHelper.beforeSessionResume = ::configureSession
-    lifecycle.addObserver(arCoreSessionHelper)
-
-    // Set up the Hello AR renderer.
-    renderer = HydroTrackARRenderer(this)
-    lifecycle.addObserver(renderer)
-
-    // Set up Hello AR UI.
-    view = HydroTrackARView(this)
-    lifecycle.addObserver(view)
-    setContentView(view.root)
-
-    // Sets up an example renderer using our HelloGeoRenderer.
-    SampleRender(view.surfaceView, renderer, assets)
-
+    initializeARComponents()
   }
 
-//   위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
-//  private fun getLocationFromNmeaData(nmeaData: String) {
-//    val (latitude, longitude) = parseNmeaData(nmeaData)
-//    if (latitude != null && longitude != null) {
-//      runOnUiThread {
-//        // UI 업데이트
-//        view.updateUsbLocationText(latitude, longitude)
-//        //        view.usbGeospatialPose = HydroTrackARView.UsbGeospatialPose(latitude, longitude)
-//      }
-//    }
-//  }
+  private fun initializeARCoreSession() {
+    // Setup ARCore session lifecycle helper and configuration.
+    arCoreSessionHelper = ARCoreSessionLifecycleHelper(this)
+    arCoreSessionHelper.exceptionCallback = { exception ->
+      handleARCoreExceptions(exception)
+    }
+    // Configure session features before session is resumed.
+    arCoreSessionHelper.beforeSessionResume = ::configureSession
+  }
 
-  var currentGPGGAData: String? = null
+  private fun initializeBackgroundThread() {
+    backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
+    backgroundHandler = Handler(backgroundThread.looper)
+    backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
+  }
 
+  private fun initializeARComponents() {
+    renderer = HydroTrackARRenderer(this)
+    view = HydroTrackARView(this)
+    lifecycle.addObserver(arCoreSessionHelper)
+    lifecycle.addObserver(renderer)
+    lifecycle.addObserver(view)
+    setContentView(view.root)
+    SampleRender(view.surfaceView, renderer, assets)
+  }
+
+  private fun handleARCoreExceptions(exception: Exception) {
+    val message = when (exception) {
+      is UnavailableUserDeclinedInstallationException ->
+        "Please install Google Play Services for AR"
+      is UnavailableApkTooOldException -> "Please update ARCore"
+      is UnavailableSdkTooOldException -> "Please update this app"
+      is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
+      is CameraNotAvailableException -> "Camera not available. Try restarting the app."
+      else -> "Failed to create AR session: $exception"
+    }
+    Log.e(TAG, "ARCore threw an exception", exception)
+    view.snackbarHelper.showError(this, message)
+  }
+
+  private fun readAndProcessNmeaData() {
+    if (usbSerialPort != null) {
+      val nmeaData = readNmeaData()
+      if (nmeaData.isNotEmpty()) {
+        getLocationFromNmeaData(nmeaData)
+      }
+    }
+    backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
+  }
+
+  //   USB 위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
   private fun getLocationFromNmeaData(nmeaData: String) {
-    val prefixNMEA = "\$GPGGA" // GPGGA 값을 문자열 리터럴로 정의
-    if (nmeaData.startsWith(prefixNMEA)) {
-      runOnUiThread {
-        view.updateUsbLocationText(nmeaData)
+    if (nmeaData.startsWith("\$GPGGA")) {
+      val (latitude, longitude) = parseNmeaData(nmeaData)
+      if (latitude != null && longitude != null) {
+//        renderer.updateUsbGeospatialPose(latitude, longitude)
       }
     }
   }
-
   override fun onDestroy() {
     super.onDestroy()
     usbSerialPort?.close()
