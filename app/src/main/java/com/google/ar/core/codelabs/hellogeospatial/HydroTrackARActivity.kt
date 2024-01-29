@@ -54,7 +54,7 @@ class HydroTrackARActivity : AppCompatActivity() {
   companion object {
     private const val TAG = "HydroTrackARActivity"
   }
-
+ 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     initializeARCoreSession()
@@ -118,10 +118,11 @@ class HydroTrackARActivity : AppCompatActivity() {
     if (nmeaData.startsWith("\$GPGGA")) {
       val (latitude, longitude) = parseNmeaData(nmeaData)
       if (latitude != null && longitude != null) {
-//        renderer.updateUsbGeospatialPose(latitude, longitude)
+        renderer.updateUsbGeospatialPose(latitude, longitude)
       }
     }
   }
+
   override fun onDestroy() {
     super.onDestroy()
     usbSerialPort?.close()

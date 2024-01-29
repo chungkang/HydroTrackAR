@@ -80,12 +80,11 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
                     "Device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}"
                 }
             }
-
-            // Update status text with earth state, USB devices, and coordinates
+            // Update status text with earth state, USB devices
             statusText.text = "$earthStateText\n$usbDevicesText"
-                }
+        }
 
-            }
+    }
     // 추가: mapView 위치 정보 업데이트 메서드
     fun updateLocation(latitude: Double, longitude: Double) {
         // mapView의 위치 정보를 업데이트하는 코드를 작성합니다.

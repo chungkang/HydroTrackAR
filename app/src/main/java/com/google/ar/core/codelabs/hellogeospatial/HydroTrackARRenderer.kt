@@ -21,6 +21,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.gms.maps.model.LatLng
 import com.google.ar.core.Anchor
+import com.google.ar.core.GeospatialPose
 import com.google.ar.core.TrackingState
 import com.google.ar.core.examples.java.common.helpers.DisplayRotationHelper
 import com.google.ar.core.examples.java.common.helpers.TrackingStateHelper
@@ -182,8 +183,8 @@ class HydroTrackARRenderer(val activity: HydroTrackARActivity) :
         latitude = cameraGeospatialPose.latitude,
         longitude = cameraGeospatialPose.longitude,
         heading = cameraGeospatialPose.heading
-      )
-      val usbGeospatialPose = earth.cameraGeospatialPose
+        )
+
     }
     if (earth != null) {
       activity.view.updateStatusText(earth, earth.cameraGeospatialPose)
@@ -239,4 +240,13 @@ class HydroTrackARRenderer(val activity: HydroTrackARActivity) :
 
   private fun showError(errorMessage: String) =
     activity.view.snackbarHelper.showError(activity, errorMessage)
+
+  var usbLatitude: Double? = null
+  var usbLongitude: Double? = null
+  fun updateUsbGeospatialPose(latitude: Double, longitude: Double) {
+    usbLatitude = latitude
+    usbLongitude = longitude
+    // 추가적인 렌더링 또는 처리 로직을 여기에 구현
+  }
+
 }
