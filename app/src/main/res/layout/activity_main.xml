@@ -25,6 +25,17 @@
       android:layout_height="fill_parent"
       android:layout_gravity="top" />
 
+  <Switch
+      android:id="@+id/switch_log"
+      android:layout_width="80dp"
+      android:layout_height="60dp"
+      android:layout_alignParentTop="true"
+      android:layout_alignParentEnd="true"
+      android:layout_marginTop="35dp"
+      android:layout_marginEnd="35dp"
+      android:onClick="onSwitchLogClick"
+      android:text="Log" />
+
   <com.google.ar.core.codelabs.hellogeospatial.helpers.MapTouchWrapper
       android:id="@+id/map_wrapper"
       android:layout_width="match_parent"
@@ -46,6 +57,7 @@
         android:layout_height="wrap_content"
         android:id="@+id/statusText"
         />
+
   </com.google.ar.core.codelabs.hellogeospatial.helpers.MapTouchWrapper>
 
 </RelativeLayout>
