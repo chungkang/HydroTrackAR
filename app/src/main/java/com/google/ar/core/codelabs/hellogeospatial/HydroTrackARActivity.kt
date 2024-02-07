@@ -75,9 +75,14 @@ class HydroTrackARActivity : AppCompatActivity() {
         initializeARCoreSession()
         initializeARComponents()
 
-        // USB 권한 요청에 대한 BroadcastReceiver 등
-        val filter = IntentFilter(ACTION_USB_PERMISSION)
-        registerReceiver(usbPermissionReceiver, filter)
+        // USB 권한 요청 및 장치 연결/분리 인텐트 필터 설정
+        IntentFilter().apply {
+            addAction(ACTION_USB_PERMISSION)
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }.also { filter ->
+            registerReceiver(usbPermissionReceiver, filter)
+        }
 
 
         var switchLog = findViewById<Switch>(R.id.switch_log) as Switch
@@ -133,22 +138,44 @@ class HydroTrackARActivity : AppCompatActivity() {
     // USB 권한 요청 결과를 처리하는 BroadcastReceiver
     private val usbPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (ACTION_USB_PERMISSION == intent.action) {
-                synchronized(this) {
-                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        device?.let {
-                            // 권한이 부여되었을 때 수행할 작업
-                            Log.d(TAG, "USB permission granted for device $device")
-                            setupUsbSerial() // 권한이 부여된 후 USB 시리얼 설정을 재시도
+            when (intent.action) {
+                ACTION_USB_PERMISSION -> {
+                    synchronized(this) {
+                        val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                        if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                            device?.let {
+                                // 권한이 부여되었을 때 수행할 작업
+                                Log.d(TAG, "USB permission granted for device $device")
+                                // USB 시리얼 설정 재시도 로직 추가
+                                setupUsbSerial() // 권한이 부여된 후 USB 시리얼 설정을 재시도
+                            }
+                        } else {
+                            // 권한이 거부되었을 때 사용자에게 알림
+                            Toast.makeText(context, "USB permission denied for device $device", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "USB permission denied for device $device")
                         }
-                    } else {
-                        Log.d(TAG, "USB permission denied for device $device")
+                    }
+                }
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    device?.let {
+                        Log.d(TAG, "USB device attached: $device")
+                        requestUsbPermission((context.getSystemService(Context.USB_SERVICE) as UsbManager), it)
+                    }
+                }
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    device?.let {
+                        if (it == usbSerialPort?.driver?.device) {
+                            Log.d(TAG, "USB device detached: $device")
+                            closeUsbSerial()
+                        }
                     }
                 }
             }
         }
     }
+
 
 
     // Method to setup USB serial communication
@@ -161,13 +188,7 @@ class HydroTrackARActivity : AppCompatActivity() {
         }
 
         val driver = availableDrivers.first()
-        val device = driver.device
-
-        if (!manager.hasPermission(device)) {
-            requestUsbPermission(manager, device)
-        } else {
-            connectToDevice(manager, driver)
-        }
+        connectToDevice(manager, driver)
     }
 
     private fun requestUsbPermission(manager: UsbManager, device: UsbDevice) {
@@ -181,36 +202,73 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
 
     private fun connectToDevice(manager: UsbManager, driver: UsbSerialDriver) {
-        val connection = manager.openDevice(driver.device)
-        if (connection == null) {
-            Toast.makeText(this, "Opening device failed", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         try {
+            val connection = manager.openDevice(driver.device) ?: throw IOException("Device connection failed")
             usbSerialPort = driver.ports[0].apply {
                 open(connection)
                 setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
             }
         } catch (e: IOException) {
-            Toast.makeText(this, "Error setting up device: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Error opening device: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Error opening device: ${e.message}", e)
+        } catch (e: SecurityException) {
+            Toast.makeText(this, "Permission denied: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Permission denied: ${e.message}", e)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Unexpected error: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Unexpected error: ${e.message}", e)
         }
     }
 
 
 
     private fun closeUsbSerial() {
-        usbSerialPort?.close()
-        usbSerialPort = null
-        backgroundHandler.removeCallbacksAndMessages(null)
+        try {
+            usbSerialPort?.close()
+        } catch (e: IOException) {
+            Toast.makeText(this, "Error closing device: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Error closing device: ${e.message}", e)
+        } finally {
+            usbSerialPort = null
+        }
+    }
+
+
+    override fun onStart() {
+        super.onStart()
+        // USB 권한 요청 및 장치 연결/분리 인텐트 필터 설정
+        IntentFilter().apply {
+            addAction(ACTION_USB_PERMISSION)
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }.also { filter ->
+            registerReceiver(usbPermissionReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // BroadcastReceiver 등록 해제
+        try {
+            unregisterReceiver(usbPermissionReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Receiver가 등록되지 않은 경우 예외 발생 가능
+            Log.e(TAG, "Receiver was not registered", e)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(usbPermissionReceiver)
-        backgroundThread.quitSafely()
+        // 순서가 중요: 먼저 사용 중인 리소스를 해제
         usbSerialPort?.close()
+        // Handler와 관련된 작업을 제거
+        backgroundHandler.removeCallbacksAndMessages(null)
+        // 마지막으로 스레드 종료
+        backgroundThread.quitSafely()
+        // BroadcastReceiver 해제
+        unregisterReceiver(usbPermissionReceiver)
     }
+
 
     // Configure the session, setting the desired options according to your usecase.
     fun configureSession(session: Session) {
@@ -258,6 +316,7 @@ class HydroTrackARActivity : AppCompatActivity() {
                 return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
             } catch (e: IOException) {
                 Toast.makeText(this, "Error reading from device: ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Error reading from device: ${e.message}")
                 return ""
             }
         }
