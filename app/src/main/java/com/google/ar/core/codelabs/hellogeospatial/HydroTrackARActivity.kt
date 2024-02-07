@@ -41,9 +41,10 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+import java.io.File
+import java.io.FileOutputStream
 
 class HydroTrackARActivity : AppCompatActivity() {
-  // 백그라운드 핸들러와 스레드
   private lateinit var backgroundHandler: Handler
   private lateinit var backgroundThread: HandlerThread
   private var usbSerialPort: UsbSerialPort? = null
@@ -54,7 +55,7 @@ class HydroTrackARActivity : AppCompatActivity() {
   companion object {
     private const val TAG = "HydroTrackARActivity"
   }
- 
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     initializeARCoreSession()
@@ -73,6 +74,20 @@ class HydroTrackARActivity : AppCompatActivity() {
     arCoreSessionHelper.beforeSessionResume = ::configureSession
   }
 
+  private fun handleARCoreExceptions(exception: Exception) {
+    val message = when (exception) {
+      is UnavailableUserDeclinedInstallationException ->
+        "Please install Google Play Services for AR"
+      is UnavailableApkTooOldException -> "Please update ARCore"
+      is UnavailableSdkTooOldException -> "Please update this app"
+      is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
+      is CameraNotAvailableException -> "Camera not available. Try restarting the app."
+      else -> "Failed to create AR session: $exception"
+    }
+    Log.e(TAG, "ARCore threw an exception", exception)
+    view.snackbarHelper.showError(this, message)
+  }
+
   private fun initializeBackgroundThread() {
     backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
     backgroundHandler = Handler(backgroundThread.looper)
@@ -89,37 +104,44 @@ class HydroTrackARActivity : AppCompatActivity() {
     SampleRender(view.surfaceView, renderer, assets)
   }
 
-  private fun handleARCoreExceptions(exception: Exception) {
-    val message = when (exception) {
-      is UnavailableUserDeclinedInstallationException ->
-        "Please install Google Play Services for AR"
-      is UnavailableApkTooOldException -> "Please update ARCore"
-      is UnavailableSdkTooOldException -> "Please update this app"
-      is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
-      is CameraNotAvailableException -> "Camera not available. Try restarting the app."
-      else -> "Failed to create AR session: $exception"
-    }
-    Log.e(TAG, "ARCore threw an exception", exception)
-    view.snackbarHelper.showError(this, message)
-  }
-
   private fun readAndProcessNmeaData() {
-    if (usbSerialPort != null) {
-      val nmeaData = readNmeaData()
-      if (nmeaData.isNotEmpty()) {
-        getLocationFromNmeaData(nmeaData)
-      }
+    val nmeaData = readNmeaData()
+    if (nmeaData.isNotEmpty()) {
+      saveNmeaDataToFile(nmeaData)
     }
     backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
   }
 
-  //   USB 위치 정보 업데이트 메서드 (백그라운드 스레드에서 실행)
-  private fun getLocationFromNmeaData(nmeaData: String) {
-    if (nmeaData.startsWith("\$GPGGA")) {
-      val (latitude, longitude) = parseNmeaData(nmeaData)
-      if (latitude != null && longitude != null) {
-        renderer.updateUsbGeospatialPose(latitude, longitude)
+
+  private fun readNmeaData(): String {
+    usbSerialPort?.let { port ->
+      try {
+        val buffer = ByteArray(1024)
+        val numBytesRead = port.read(buffer, 1000)
+        return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+      } catch (e: IOException) {
+        Log.e(TAG, "Error reading from device: ${e.message}")
+        return ""
       }
+    }
+    return ""
+  }
+
+
+  private fun saveNmeaDataToFile(data: String) {
+    try {
+      val fileName = "NmeaData.txt" // 파일 이름 지정
+      val file = File(getExternalFilesDir(null), fileName) // 파일 경로 지정
+      if (!file.exists()) {
+        file.createNewFile() // 파일이 존재하지 않으면 새로 생성
+      }
+      FileOutputStream(file, true).use { fos -> // 파일에 데이터 추가하기
+        fos.write((data + "\n").toByteArray()) // 데이터에 줄바꿈 문자 추가하여 파일에 쓰기
+        fos.flush()
+      }
+      Log.d("HydroTrackARActivity", "NMEA data saved to file.")
+    } catch (e: IOException) {
+      Log.e("HydroTrackARActivity", "Failed to save NMEA data to file", e)
     }
   }
 
@@ -198,42 +220,15 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
   }
 
-  // USB 장치로부터 데이터를 읽는 메서드
-  private fun readNmeaData(): String {
-    usbSerialPort?.let { port ->
-      try {
-        val buffer = ByteArray(1024)
-        val numBytesRead = port.read(buffer, 1000)
-        return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
-      } catch (e: IOException) {
-        Log.e(TAG, "Error reading from device: ${e.message}")
-        return ""
-      }
-    }
-    return ""
-  }
 
-  // Convert NMEA latitude/longitude to decimal degrees
-  fun convertToDecimalDegrees(coordinate: String, direction: String): Double? {
-    return try {
-      val degrees = coordinate.substring(0, 2).toDouble()
-      val minutes = coordinate.substring(2).toDouble()
-      val decimalDegrees = degrees + minutes / 60.0
-      if (direction == "S" || direction == "W") -decimalDegrees else decimalDegrees
-    } catch (e: NumberFormatException) {
-      null
-    }
-  }
 
-  // Improved NMEA data parsing method
   fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
-    val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),(N|S),([0-9.]+),(E|W),""")
+    val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")
     val matcher: Matcher = pattern.matcher(nmeaData)
     if (matcher.find()) {
-      val latitude = convertToDecimalDegrees(matcher.group(1), matcher.group(2))
-      val longitude = convertToDecimalDegrees(matcher.group(3), matcher.group(4))
-      return Pair(latitude, longitude)
+      return Pair(null, null)
     }
     return Pair(null, null)
   }
+
 }

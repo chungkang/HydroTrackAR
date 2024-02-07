@@ -241,12 +241,5 @@ class HydroTrackARRenderer(val activity: HydroTrackARActivity) :
   private fun showError(errorMessage: String) =
     activity.view.snackbarHelper.showError(activity, errorMessage)
 
-  var usbLatitude: Double? = null
-  var usbLongitude: Double? = null
-  fun updateUsbGeospatialPose(latitude: Double, longitude: Double) {
-    usbLatitude = latitude
-    usbLongitude = longitude
-    // 추가적인 렌더링 또는 처리 로직을 여기에 구현
-  }
 
 }

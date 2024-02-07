@@ -24,6 +24,7 @@
   <uses-feature android:name="android.hardware.usb.host" />
   <uses-permission android:name="android.permission.USB_PERMISSION" />
 
+
   <!-- Limits app visibility in the Google Play Store to ARCore supported devices
        (https://developers.google.com/ar/devices). -->
   <uses-feature android:name="android.hardware.camera.ar" android:required="true"/>
@@ -37,7 +38,6 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="false"
       tools:ignore="GoogleAppIndexingWarning">
-
     <activity
         android:name=".HydroTrackARActivity"
         android:configChanges="orientation|screenSize"
@@ -47,15 +47,10 @@
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
-        <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
       </intent-filter>
-      <meta-data
-          android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-          android:resource="@xml/device_filter" />
     </activity>
     <!-- Indicates whether "Google Play Services for AR" (ARCore) is "required" or "optional". -->
     <meta-data android:name="com.google.ar.core" android:value="required" />
-
     <meta-data
         android:name="com.google.android.ar.API_KEY"
         android:value="AIzaSyAaFEbwWewNLAy6zH6MEXCjJQsrPJuSPyA"/>
