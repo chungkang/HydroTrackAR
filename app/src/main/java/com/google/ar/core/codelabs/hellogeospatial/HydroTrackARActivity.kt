@@ -62,162 +62,167 @@ class HydroTrackARActivity : AppCompatActivity() {
 
 
     companion object {
-      private const val TAG = "HydroTrackARActivity"
+        private const val TAG = "HydroTrackARActivity"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-      super.onCreate(savedInstanceState)
-      initializeARCoreSession()
-      initializeARComponents()
+        super.onCreate(savedInstanceState)
+        initializeARCoreSession()
+        initializeARComponents()
 
-      var switchLog = findViewById<Switch>(R.id.switch_log) as Switch
+        var switchLog = findViewById<Switch>(R.id.switch_log) as Switch
 
-      switchLog.setOnClickListener{
-        if(switchLog.isChecked){
-          Toast.makeText(applicationContext, "Logging Start", Toast.LENGTH_SHORT).show()
-          initializeBackgroundThread()
-          setupUsbSerial()
-        }else{
-          Toast.makeText(applicationContext, "Logging Stop", Toast.LENGTH_SHORT).show()
-          stopBackgroundThread()
-          closeUsbSerial()
+        switchLog.setOnClickListener {
+            if (switchLog.isChecked) {
+                Toast.makeText(applicationContext, "Logging Start", Toast.LENGTH_SHORT).show()
+                initializeBackgroundThread()
+                setupUsbSerial()
+            } else {
+                Toast.makeText(applicationContext, "Logging Stop", Toast.LENGTH_SHORT).show()
+                stopBackgroundThread()
+                closeUsbSerial()
+            }
         }
-      }
     }
 
-  private fun initializeARCoreSession() {
-      // Setup ARCore session lifecycle helper and configuration.
-      arCoreSessionHelper = ARCoreSessionLifecycleHelper(this)
-      arCoreSessionHelper.exceptionCallback = { exception ->
-        handleARCoreExceptions(exception)
-      }
-      // Configure session features before session is resumed.
-      arCoreSessionHelper.beforeSessionResume = ::configureSession
+    private fun initializeARCoreSession() {
+        // Setup ARCore session lifecycle helper and configuration.
+        arCoreSessionHelper = ARCoreSessionLifecycleHelper(this)
+        arCoreSessionHelper.exceptionCallback = { exception ->
+            handleARCoreExceptions(exception)
+        }
+        // Configure session features before session is resumed.
+        arCoreSessionHelper.beforeSessionResume = ::configureSession
     }
 
     private fun handleARCoreExceptions(exception: Exception) {
-      val message = when (exception) {
-        is UnavailableUserDeclinedInstallationException ->
-          "Please install Google Play Services for AR"
-        is UnavailableApkTooOldException -> "Please update ARCore"
-        is UnavailableSdkTooOldException -> "Please update this app"
-        is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
-        is CameraNotAvailableException -> "Camera not available. Try restarting the app."
-        else -> "Failed to create AR session: $exception"
-      }
-      Log.e(TAG, "ARCore threw an exception", exception)
-      view.snackbarHelper.showError(this, message)
+        val message = when (exception) {
+            is UnavailableUserDeclinedInstallationException ->
+                "Please install Google Play Services for AR"
+
+            is UnavailableApkTooOldException -> "Please update ARCore"
+            is UnavailableSdkTooOldException -> "Please update this app"
+            is UnavailableDeviceNotCompatibleException -> "This device does not support AR"
+            is CameraNotAvailableException -> "Camera not available. Try restarting the app."
+            else -> "Failed to create AR session: $exception"
+        }
+        Log.e(TAG, "ARCore threw an exception", exception)
+        view.snackbarHelper.showError(this, message)
     }
 
     private fun initializeBackgroundThread() {
-      backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
-      backgroundHandler = Handler(backgroundThread.looper)
-      backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
+        backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
+        backgroundHandler = Handler(backgroundThread.looper)
+        backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
     }
 
     private fun initializeARComponents() {
-      renderer = HydroTrackARRenderer(this)
-      view = HydroTrackARView(this)
-      lifecycle.addObserver(arCoreSessionHelper)
-      lifecycle.addObserver(renderer)
-      lifecycle.addObserver(view)
-      setContentView(view.root)
-      SampleRender(view.surfaceView, renderer, assets)
+        renderer = HydroTrackARRenderer(this)
+        view = HydroTrackARView(this)
+        lifecycle.addObserver(arCoreSessionHelper)
+        lifecycle.addObserver(renderer)
+        lifecycle.addObserver(view)
+        setContentView(view.root)
+        SampleRender(view.surfaceView, renderer, assets)
     }
 
-  private fun stopBackgroundThread() {
-    backgroundHandler.removeCallbacksAndMessages(null)
-    backgroundThread.quitSafely()
-    backgroundThread.join()
+    private fun stopBackgroundThread() {
+        backgroundHandler.removeCallbacksAndMessages(null)
+        backgroundThread.quitSafely()
+        backgroundThread.join()
 //    backgroundHandler = null
 //    backgroundThread = null
-  }
+    }
 
-  private fun closeUsbSerial() {
-    usbSerialPort?.close()
-    usbSerialPort = null
-  }
+    private fun closeUsbSerial() {
+        usbSerialPort?.close()
+        usbSerialPort = null
+    }
 
     private fun readAndProcessNmeaData() {
-      val nmeaData = readNmeaData()
-      if (nmeaData.isNotEmpty()) {
-        saveNmeaDataToFile(nmeaData)
-      }
-      backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
+        val nmeaData = readNmeaData()
+        if (nmeaData.isNotEmpty()) {
+            saveNmeaDataToFile(nmeaData)
+        }
+        backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
     }
 
 
     private fun readNmeaData(): String {
-      usbSerialPort?.let { port ->
-        try {
-          val buffer = ByteArray(1024)
-          val numBytesRead = port.read(buffer, 1000)
-          return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
-        } catch (e: IOException) {
-          Log.e(TAG, "Error reading from device: ${e.message}")
-          return ""
+        usbSerialPort?.let { port ->
+            try {
+                val buffer = ByteArray(1024)
+                val numBytesRead = port.read(buffer, 1000)
+                return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+            } catch (e: IOException) {
+                Log.e(TAG, "Error reading from device: ${e.message}")
+                return ""
+            }
         }
-      }
-      return ""
+        return ""
     }
 
 
     private fun saveNmeaDataToFile(data: String) {
-      try {
-        val fileName = "NmeaData.txt" // 파일 이름 지정
-        val file = File(getExternalFilesDir(null), fileName) // 파일 경로 지정
-        if (!file.exists()) {
-          file.createNewFile() // 파일이 존재하지 않으면 새로 생성
+        try {
+            val fileName = "NmeaData.txt" // 파일 이름 지정
+            val file = File(getExternalFilesDir(null), fileName) // 파일 경로 지정
+            if (!file.exists()) {
+                file.createNewFile() // 파일이 존재하지 않으면 새로 생성
+            }
+            FileOutputStream(file, true).use { fos -> // 파일에 데이터 추가하기
+                fos.write((data + "\n").toByteArray()) // 데이터에 줄바꿈 문자 추가하여 파일에 쓰기
+                fos.flush()
+            }
+            Log.d("HydroTrackARActivity", "NMEA data saved to file.")
+        } catch (e: IOException) {
+            Log.e("HydroTrackARActivity", "Failed to save NMEA data to file", e)
         }
-        FileOutputStream(file, true).use { fos -> // 파일에 데이터 추가하기
-          fos.write((data + "\n").toByteArray()) // 데이터에 줄바꿈 문자 추가하여 파일에 쓰기
-          fos.flush()
-        }
-        Log.d("HydroTrackARActivity", "NMEA data saved to file.")
-      } catch (e: IOException) {
-        Log.e("HydroTrackARActivity", "Failed to save NMEA data to file", e)
-      }
     }
 
 
     override fun onDestroy() {
-      super.onDestroy()
-      backgroundThread.quitSafely()
-      usbSerialPort?.close()
+        super.onDestroy()
+        backgroundThread.quitSafely()
+        usbSerialPort?.close()
     }
 
     // Configure the session, setting the desired options according to your usecase.
     fun configureSession(session: Session) {
-      // TODO: Configure ARCore to use GeospatialMode.ENABLED.
-      session.configure(
-        session.config.apply {
-          // Enable Geospatial Mode.
-          geospatialMode = Config.GeospatialMode.ENABLED
-        }
-      )
+        // TODO: Configure ARCore to use GeospatialMode.ENABLED.
+        session.configure(
+            session.config.apply {
+                // Enable Geospatial Mode.
+                geospatialMode = Config.GeospatialMode.ENABLED
+            }
+        )
     }
 
     override fun onRequestPermissionsResult(
-      requestCode: Int,
-      permissions: Array<String>,
-      results: IntArray
+        requestCode: Int,
+        permissions: Array<String>,
+        results: IntArray
     ) {
-      super.onRequestPermissionsResult(requestCode, permissions, results)
-      if (!GeoPermissionsHelper.hasGeoPermissions(this)) {
-        // Use toast instead of snackbar here since the activity will exit.
-        Toast.makeText(this, "Camera and location permissions are needed to run this application", Toast.LENGTH_LONG)
-          .show()
-        if (!GeoPermissionsHelper.shouldShowRequestPermissionRationale(this)) {
-          // Permission denied with checking "Do not ask again".
-          GeoPermissionsHelper.launchPermissionSettings(this)
+        super.onRequestPermissionsResult(requestCode, permissions, results)
+        if (!GeoPermissionsHelper.hasGeoPermissions(this)) {
+            // Use toast instead of snackbar here since the activity will exit.
+            Toast.makeText(
+                this,
+                "Camera and location permissions are needed to run this application",
+                Toast.LENGTH_LONG
+            )
+                .show()
+            if (!GeoPermissionsHelper.shouldShowRequestPermissionRationale(this)) {
+                // Permission denied with checking "Do not ask again".
+                GeoPermissionsHelper.launchPermissionSettings(this)
+            }
+            finish()
         }
-        finish()
-      }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-      super.onWindowFocusChanged(hasFocus)
-      FullScreenHelper.setFullScreenOnWindowFocusChanged(this, hasFocus)
+        super.onWindowFocusChanged(hasFocus)
+        FullScreenHelper.setFullScreenOnWindowFocusChanged(this, hasFocus)
     }
 
 
@@ -225,31 +230,31 @@ class HydroTrackARActivity : AppCompatActivity() {
     // Improved method for USB serial setup and reading data
     // USB 연결 설정 메서드
     private fun setupUsbSerial() {
-      val manager = getSystemService(Context.USB_SERVICE) as UsbManager
-      val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
-      if (availableDrivers.isEmpty()) return
+        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
+        if (availableDrivers.isEmpty()) return
 
-      val driver = availableDrivers[0]
-      val connection = manager.openDevice(driver.device) ?: return
+        val driver = availableDrivers[0]
+        val connection = manager.openDevice(driver.device) ?: return
 
-      val port = driver.ports[0]
-      try {
-        usbSerialPort = port.apply {
-          open(connection)
-          setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-          // 이후 데이터 읽기 및 처리 로직 추가...
+        val port = driver.ports[0]
+        try {
+            usbSerialPort = port.apply {
+                open(connection)
+                setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+                // 이후 데이터 읽기 및 처리 로직 추가...
+            }
+        } catch (e: IOException) {
+            // 에러 처리
         }
-      } catch (e: IOException) {
-        // 에러 처리
-      }
     }
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
-      val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")
-      val matcher: Matcher = pattern.matcher(nmeaData)
-      if (matcher.find()) {
+        val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")
+        val matcher: Matcher = pattern.matcher(nmeaData)
+        if (matcher.find()) {
+            return Pair(null, null)
+        }
         return Pair(null, null)
-      }
-      return Pair(null, null)
     }
 }

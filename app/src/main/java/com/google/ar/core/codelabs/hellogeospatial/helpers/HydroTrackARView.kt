@@ -33,43 +33,49 @@ import com.google.ar.core.examples.java.common.helpers.SnackbarHelper
 
 /** Contains UI elements */
 class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObserver {
-  val root = View.inflate(activity, R.layout.activity_main, null)
-  val surfaceView = root.findViewById<GLSurfaceView>(R.id.surfaceview)
+    val root = View.inflate(activity, R.layout.activity_main, null)
+    val surfaceView = root.findViewById<GLSurfaceView>(R.id.surfaceview)
 
     val session
-    get() = activity.arCoreSessionHelper.session
+        get() = activity.arCoreSessionHelper.session
 
-  val snackbarHelper = SnackbarHelper()
+    val snackbarHelper = SnackbarHelper()
 
-  var mapView: MapView? = null
-  val mapTouchWrapper: MapTouchWrapper = root.findViewById<MapTouchWrapper>(R.id.map_wrapper).apply {
-    setup { screenLocation ->
-      val latLng: LatLng =
-        mapView?.googleMap?.projection?.fromScreenLocation(screenLocation) ?: return@setup
-      activity.renderer.onMapClick(latLng)
-    }
-  }
-  val mapFragment =
-    (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
-      it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
-    }
+    var mapView: MapView? = null
+    val mapTouchWrapper: MapTouchWrapper =
+        root.findViewById<MapTouchWrapper>(R.id.map_wrapper).apply {
+            setup { screenLocation ->
+                val latLng: LatLng =
+                    mapView?.googleMap?.projection?.fromScreenLocation(screenLocation)
+                        ?: return@setup
+                activity.renderer.onMapClick(latLng)
+            }
+        }
+    val mapFragment =
+        (activity.supportFragmentManager.findFragmentById(R.id.map)!! as SupportMapFragment).also {
+            it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
+        }
 
-  private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
+    private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
         activity.runOnUiThread {
             val poseText = if (cameraGeospatialPose == null) "" else
-                activity.getString(R.string.geospatial_pose,
+                activity.getString(
+                    R.string.geospatial_pose,
                     cameraGeospatialPose.latitude,
                     cameraGeospatialPose.longitude,
                     cameraGeospatialPose.horizontalAccuracy,
                     cameraGeospatialPose.altitude,
                     cameraGeospatialPose.verticalAccuracy,
                     cameraGeospatialPose.heading,
-                    cameraGeospatialPose.headingAccuracy)
-            val earthStateText = activity.resources.getString(R.string.earth_state,
+                    cameraGeospatialPose.headingAccuracy
+                )
+            val earthStateText = activity.resources.getString(
+                R.string.earth_state,
                 earth.earthState.toString(),
                 earth.trackingState.toString(),
-                poseText)
+                poseText
+            )
 
             val usbManager = activity.getSystemService(Context.USB_SERVICE) as UsbManager
             val deviceList = usbManager.deviceList
@@ -85,6 +91,7 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
         }
 
     }
+
     // 추가: mapView 위치 정보 업데이트 메서드
     fun updateLocation(latitude: Double, longitude: Double) {
         // mapView의 위치 정보를 업데이트하는 코드를 작성합니다.
@@ -92,11 +99,11 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
         mapView?.googleMap?.moveCamera(CameraUpdateFactory.newLatLng(newLatLng))
     }
 
-  override fun onResume(owner: LifecycleOwner) {
-    surfaceView.onResume()
-  }
+    override fun onResume(owner: LifecycleOwner) {
+        surfaceView.onResume()
+    }
 
-  override fun onPause(owner: LifecycleOwner) {
-    surfaceView.onPause()
-  }
+    override fun onPause(owner: LifecycleOwner) {
+        surfaceView.onPause()
+    }
 }
