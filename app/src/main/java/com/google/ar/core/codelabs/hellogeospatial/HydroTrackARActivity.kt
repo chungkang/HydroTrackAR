@@ -15,15 +15,19 @@
  */
 package com.google.ar.core.codelabs.hellogeospatial
 
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
+import android.provider.MediaStore
 import android.util.Log
 import android.widget.Switch
 import android.widget.Toast
@@ -40,13 +44,13 @@ import com.google.ar.core.exceptions.UnavailableApkTooOldException
 import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
 import com.google.ar.core.exceptions.UnavailableSdkTooOldException
 import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
+import com.hoho.android.usbserial.driver.UsbSerialDriver
 import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.regex.Matcher
 import java.util.regex.Pattern
-import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -63,6 +67,7 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "HydroTrackARActivity"
+        private const val ACTION_USB_PERMISSION = "com.google.ar.core.codelabs.hellogeospatial.USB_PERMISSION"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,16 +75,19 @@ class HydroTrackARActivity : AppCompatActivity() {
         initializeARCoreSession()
         initializeARComponents()
 
+        // USB 권한 요청에 대한 BroadcastReceiver 등
+        val filter = IntentFilter(ACTION_USB_PERMISSION)
+        registerReceiver(usbPermissionReceiver, filter)
+
+
         var switchLog = findViewById<Switch>(R.id.switch_log) as Switch
 
         switchLog.setOnClickListener {
             if (switchLog.isChecked) {
-                Toast.makeText(applicationContext, "Logging Start", Toast.LENGTH_SHORT).show()
-                initializeBackgroundThread()
+                Toast.makeText(this, "Logging Start", Toast.LENGTH_SHORT).show()
                 setupUsbSerial()
             } else {
-                Toast.makeText(applicationContext, "Logging Stop", Toast.LENGTH_SHORT).show()
-                stopBackgroundThread()
+                Toast.makeText(this, "Logging Stop", Toast.LENGTH_SHORT).show()
                 closeUsbSerial()
             }
         }
@@ -106,15 +114,11 @@ class HydroTrackARActivity : AppCompatActivity() {
             is CameraNotAvailableException -> "Camera not available. Try restarting the app."
             else -> "Failed to create AR session: $exception"
         }
-        Log.e(TAG, "ARCore threw an exception", exception)
+        Toast.makeText(this, "ARCore threw an exception: $exception", Toast.LENGTH_SHORT).show()
+
         view.snackbarHelper.showError(this, message)
     }
 
-    private fun initializeBackgroundThread() {
-        backgroundThread = HandlerThread("USBBackgroundThread").apply { start() }
-        backgroundHandler = Handler(backgroundThread.looper)
-        backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
-    }
 
     private fun initializeARComponents() {
         renderer = HydroTrackARRenderer(this)
@@ -126,63 +130,84 @@ class HydroTrackARActivity : AppCompatActivity() {
         SampleRender(view.surfaceView, renderer, assets)
     }
 
-    private fun stopBackgroundThread() {
-        backgroundHandler.removeCallbacksAndMessages(null)
-        backgroundThread.quitSafely()
-        backgroundThread.join()
-//    backgroundHandler = null
-//    backgroundThread = null
+    // USB 권한 요청 결과를 처리하는 BroadcastReceiver
+    private val usbPermissionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (ACTION_USB_PERMISSION == intent.action) {
+                synchronized(this) {
+                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        device?.let {
+                            // 권한이 부여되었을 때 수행할 작업
+                            Log.d(TAG, "USB permission granted for device $device")
+                            setupUsbSerial() // 권한이 부여된 후 USB 시리얼 설정을 재시도
+                        }
+                    } else {
+                        Log.d(TAG, "USB permission denied for device $device")
+                    }
+                }
+            }
+        }
     }
+
+
+    // Method to setup USB serial communication
+    private fun setupUsbSerial() {
+        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
+        if (availableDrivers.isEmpty()) {
+            Toast.makeText(this, "No USB devices found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val driver = availableDrivers.first()
+        val device = driver.device
+
+        if (!manager.hasPermission(device)) {
+            requestUsbPermission(manager, device)
+        } else {
+            connectToDevice(manager, driver)
+        }
+    }
+
+    private fun requestUsbPermission(manager: UsbManager, device: UsbDevice) {
+        val permissionIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            Intent(ACTION_USB_PERMISSION),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        manager.requestPermission(device, permissionIntent)
+    }
+
+    private fun connectToDevice(manager: UsbManager, driver: UsbSerialDriver) {
+        val connection = manager.openDevice(driver.device)
+        if (connection == null) {
+            Toast.makeText(this, "Opening device failed", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            usbSerialPort = driver.ports[0].apply {
+                open(connection)
+                setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+            }
+        } catch (e: IOException) {
+            Toast.makeText(this, "Error setting up device: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
 
     private fun closeUsbSerial() {
         usbSerialPort?.close()
         usbSerialPort = null
+        backgroundHandler.removeCallbacksAndMessages(null)
     }
-
-    private fun readAndProcessNmeaData() {
-        val nmeaData = readNmeaData()
-        if (nmeaData.isNotEmpty()) {
-            saveNmeaDataToFile(nmeaData)
-        }
-        backgroundHandler.postDelayed({ readAndProcessNmeaData() }, 1000)
-    }
-
-
-    private fun readNmeaData(): String {
-        usbSerialPort?.let { port ->
-            try {
-                val buffer = ByteArray(1024)
-                val numBytesRead = port.read(buffer, 1000)
-                return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
-            } catch (e: IOException) {
-                Log.e(TAG, "Error reading from device: ${e.message}")
-                return ""
-            }
-        }
-        return ""
-    }
-
-
-    private fun saveNmeaDataToFile(data: String) {
-        try {
-            val fileName = "NmeaData.txt" // 파일 이름 지정
-            val file = File(getExternalFilesDir(null), fileName) // 파일 경로 지정
-            if (!file.exists()) {
-                file.createNewFile() // 파일이 존재하지 않으면 새로 생성
-            }
-            FileOutputStream(file, true).use { fos -> // 파일에 데이터 추가하기
-                fos.write((data + "\n").toByteArray()) // 데이터에 줄바꿈 문자 추가하여 파일에 쓰기
-                fos.flush()
-            }
-            Log.d("HydroTrackARActivity", "NMEA data saved to file.")
-        } catch (e: IOException) {
-            Log.e("HydroTrackARActivity", "Failed to save NMEA data to file", e)
-        }
-    }
-
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterReceiver(usbPermissionReceiver)
         backgroundThread.quitSafely()
         usbSerialPort?.close()
     }
@@ -225,29 +250,60 @@ class HydroTrackARActivity : AppCompatActivity() {
         FullScreenHelper.setFullScreenOnWindowFocusChanged(this, hasFocus)
     }
 
-
-    // Method to setup USB serial communication
-    // Improved method for USB serial setup and reading data
-    // USB 연결 설정 메서드
-    private fun setupUsbSerial() {
-        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
-        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(manager)
-        if (availableDrivers.isEmpty()) return
-
-        val driver = availableDrivers[0]
-        val connection = manager.openDevice(driver.device) ?: return
-
-        val port = driver.ports[0]
-        try {
-            usbSerialPort = port.apply {
-                open(connection)
-                setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-                // 이후 데이터 읽기 및 처리 로직 추가...
+    private fun readNmeaData(): String {
+        usbSerialPort?.let { port ->
+            try {
+                val buffer = ByteArray(1024)
+                val numBytesRead = port.read(buffer, 1000)
+                return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
+            } catch (e: IOException) {
+                Toast.makeText(this, "Error reading from device: ${e.message}", Toast.LENGTH_SHORT).show()
+                return ""
             }
+        }
+        return ""
+    }
+
+    private fun startBackgroundThread() {
+        backgroundThread = HandlerThread("USBBackgroundThread").also { it.start() }
+        backgroundHandler = Handler(backgroundThread.looper)
+        backgroundHandler.post(object : Runnable {
+            override fun run() {
+                val data = readNmeaData()
+                if (data.isNotEmpty()) {
+                    saveDataToDownloadFolder(data)
+                }
+                backgroundHandler.postDelayed(this, 1000) // 1초 후에 다시 실행
+            }
+        })
+    }
+
+    private fun saveDataToDownloadFolder(data: String) {
+        try {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "NmeaData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt")
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+
+            val contentResolver = applicationContext.contentResolver
+            val uri = contentResolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+                ?: throw IOException("Failed to create new MediaStore record.")
+
+            contentResolver.openFileDescriptor(uri, "w").use { pfd ->
+                FileOutputStream(pfd?.fileDescriptor).use { fos ->
+                    fos.write((data + "\n").toByteArray())
+                }
+            }
+
+            Toast.makeText(this, "NMEA data saved.", Toast.LENGTH_SHORT).show()
         } catch (e: IOException) {
-            // 에러 처리
+            Log.e(TAG, "Failed to save NMEA data to file", e)
+            Toast.makeText(this, "Failed to save NMEA data to file: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
+
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
         val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")
