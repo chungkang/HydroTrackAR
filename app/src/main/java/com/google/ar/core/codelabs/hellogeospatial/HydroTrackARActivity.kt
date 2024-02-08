@@ -49,12 +49,12 @@ import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import java.io.IOException
 import java.nio.charset.StandardCharsets
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
 
 class HydroTrackARActivity : AppCompatActivity() {
     private lateinit var backgroundHandler: Handler
@@ -63,11 +63,14 @@ class HydroTrackARActivity : AppCompatActivity() {
     lateinit var arCoreSessionHelper: ARCoreSessionLifecycleHelper
     lateinit var view: HydroTrackARView
     lateinit var renderer: HydroTrackARRenderer
+    private var isLogging = false
+    private val dataBuffer = StringBuilder()
 
 
     companion object {
         private const val TAG = "HydroTrackARActivity"
-        private const val ACTION_USB_PERMISSION = "com.google.ar.core.codelabs.hellogeospatial.USB_PERMISSION"
+        private const val ACTION_USB_PERMISSION =
+            "com.google.ar.core.codelabs.hellogeospatial.USB_PERMISSION"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,16 +87,16 @@ class HydroTrackARActivity : AppCompatActivity() {
             registerReceiver(usbPermissionReceiver, filter)
         }
 
-
-        var switchLog = findViewById<Switch>(R.id.switch_log) as Switch
-
+        val switchLog = findViewById<Switch>(R.id.switch_log) as Switch
         switchLog.setOnClickListener {
             if (switchLog.isChecked) {
                 Toast.makeText(this, "Logging Start", Toast.LENGTH_SHORT).show()
                 setupUsbSerial()
+                startLogging()
             } else {
                 Toast.makeText(this, "Logging Stop", Toast.LENGTH_SHORT).show()
                 closeUsbSerial()
+                stopLoggingAndSaveData()
             }
         }
     }
@@ -151,18 +154,27 @@ class HydroTrackARActivity : AppCompatActivity() {
                             }
                         } else {
                             // 권한이 거부되었을 때 사용자에게 알림
-                            Toast.makeText(context, "USB permission denied for device $device", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                "USB permission denied for device $device",
+                                Toast.LENGTH_SHORT
+                            ).show()
                             Log.d(TAG, "USB permission denied for device $device")
                         }
                     }
                 }
+
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
                     val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     device?.let {
                         Log.d(TAG, "USB device attached: $device")
-                        requestUsbPermission((context.getSystemService(Context.USB_SERVICE) as UsbManager), it)
+                        requestUsbPermission(
+                            (context.getSystemService(Context.USB_SERVICE) as UsbManager),
+                            it
+                        )
                     }
                 }
+
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     device?.let {
@@ -177,6 +189,56 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
 
 
+    private fun startLogging() {
+        isLogging = true
+        dataBuffer.clear() // 기존 데이터를 지웁니다.
+        startBackgroundThreadForUSBReading()
+    }
+
+    private fun startBackgroundThreadForUSBReading() {
+        backgroundThread = HandlerThread("USBReadThread").also { it.start() }
+        backgroundHandler = Handler(backgroundThread.looper)
+
+        backgroundHandler.post(object : Runnable {
+            override fun run() {
+                if (!isLogging) return
+                usbSerialPort?.let { port ->
+                    try {
+                        val buffer = ByteArray(4096)
+                        val numBytesRead = port.read(buffer, 1000)
+                        val readData = String(buffer, 0, numBytesRead)
+                        dataBuffer.append(readData) // 데이터를 StringBuilder에 추가합니다.
+                    } catch (e: IOException) {
+                        // 에러를 로그에 기록합니다.
+                        Log.e(TAG, "Error reading from USB device: ${e.message}", e)
+                        // 사용자에게 에러를 알립니다.
+                        runOnUiThread {
+                            Toast.makeText(
+                                this@HydroTrackARActivity,
+                                "Error reading USB data: ${e.localizedMessage}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+                if (isLogging) {
+                    backgroundHandler.postDelayed(this, 100) // 다음 읽기 시도까지 지연시간을 줍니다.
+                }
+            }
+        })
+    }
+
+    private fun stopLoggingAndSaveData() {
+        isLogging = false
+        if (backgroundHandler != null) {
+            backgroundHandler.removeCallbacksAndMessages(null)
+            backgroundThread.quitSafely()
+        }
+        val data = dataBuffer.toString()
+        if (data.isNotEmpty()) {
+            saveDataToDownloadFolder(data)
+        }
+    }
 
     // Method to setup USB serial communication
     private fun setupUsbSerial() {
@@ -203,7 +265,8 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     private fun connectToDevice(manager: UsbManager, driver: UsbSerialDriver) {
         try {
-            val connection = manager.openDevice(driver.device) ?: throw IOException("Device connection failed")
+            val connection =
+                manager.openDevice(driver.device) ?: throw IOException("Device connection failed")
             usbSerialPort = driver.ports[0].apply {
                 open(connection)
                 setParameters(9600, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
@@ -221,7 +284,6 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
 
 
-
     private fun closeUsbSerial() {
         try {
             usbSerialPort?.close()
@@ -236,14 +298,11 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // USB 권한 요청 및 장치 연결/분리 인텐트 필터 설정
-        IntentFilter().apply {
-            addAction(ACTION_USB_PERMISSION)
-            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
-            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-        }.also { filter ->
-            registerReceiver(usbPermissionReceiver, filter)
-        }
+        val filter = IntentFilter()
+        filter.addAction(ACTION_USB_PERMISSION)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        registerReceiver(usbPermissionReceiver, filter)
     }
 
     override fun onStop() {
@@ -315,7 +374,8 @@ class HydroTrackARActivity : AppCompatActivity() {
                 val numBytesRead = port.read(buffer, 1000)
                 return String(buffer, 0, numBytesRead, StandardCharsets.UTF_8)
             } catch (e: IOException) {
-                Toast.makeText(this, "Error reading from device: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error reading from device: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
                 Log.e(TAG, "Error reading from device: ${e.message}")
                 return ""
             }
@@ -338,30 +398,34 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
 
     private fun saveDataToDownloadFolder(data: String) {
-        try {
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, "NmeaData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt")
-                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
+        val fileName =
+            "USBData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt"
+        val resolver = applicationContext.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
 
-            val contentResolver = applicationContext.contentResolver
-            val uri = contentResolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+        try {
+            val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
                 ?: throw IOException("Failed to create new MediaStore record.")
 
-            contentResolver.openFileDescriptor(uri, "w").use { pfd ->
-                FileOutputStream(pfd?.fileDescriptor).use { fos ->
-                    fos.write((data + "\n").toByteArray())
-                }
-            }
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(data.toByteArray())
+            } ?: throw IOException("Failed to open output stream.")
 
-            Toast.makeText(this, "NMEA data saved.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$fileName saved to Downloads.", Toast.LENGTH_LONG).show()
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to save NMEA data to file", e)
-            Toast.makeText(this, "Failed to save NMEA data to file: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Failed to save data: ${e.message}", e)
+            Toast.makeText(this, "Failed to save data: ${e.localizedMessage}", Toast.LENGTH_SHORT)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error: ${e.message}", e)
+            Toast.makeText(this, "Unexpected error: ${e.localizedMessage}", Toast.LENGTH_SHORT)
+                .show()
         }
     }
-
 
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
