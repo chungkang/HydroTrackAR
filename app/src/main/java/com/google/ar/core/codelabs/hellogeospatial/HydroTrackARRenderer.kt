@@ -225,6 +225,15 @@ class HydroTrackARRenderer(val activity: HydroTrackARActivity) :
         }
     }
 
+    fun getCurrentGeospatialPose(): GeospatialPose? {
+        val earth = session?.earth
+        return if (earth?.trackingState == TrackingState.TRACKING) {
+            earth.cameraGeospatialPose
+        } else {
+            null
+        }
+    }
+
     private fun SampleRender.renderCompassAtAnchor(anchor: Anchor) {
         // Get the current pose of the Anchor in world space. The Anchor pose is updated
         // during calls to session.update() as ARCore refines its estimate of the world.

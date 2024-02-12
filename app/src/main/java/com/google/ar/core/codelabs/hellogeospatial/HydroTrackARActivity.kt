@@ -64,8 +64,8 @@ class HydroTrackARActivity : AppCompatActivity() {
     lateinit var view: HydroTrackARView
     lateinit var renderer: HydroTrackARRenderer
     private var isLogging = false
-    private val dataBuffer = StringBuilder()
-
+    private val usbDataBuffer = StringBuilder()
+    private val geospatialDataBuffer = StringBuilder()
 
     companion object {
         private const val TAG = "HydroTrackARActivity"
@@ -93,10 +93,13 @@ class HydroTrackARActivity : AppCompatActivity() {
                 Toast.makeText(this, "Logging Start", Toast.LENGTH_SHORT).show()
                 setupUsbSerial()
                 startLogging()
+//                getGeospatialPoseData 를 백그라운드에서 1초에 1번씩 String으로 붙여서 갖고 있는 로직
             } else {
                 Toast.makeText(this, "Logging Stop", Toast.LENGTH_SHORT).show()
                 closeUsbSerial()
                 stopLoggingAndSaveData()
+//                getGeospatialPoseData 를 백그라운드에서 1초에 1번씩 String으로 붙인 문자열을 txt 파일로 download 경로에 저장하는 로직
+
             }
         }
     }
@@ -191,8 +194,8 @@ class HydroTrackARActivity : AppCompatActivity() {
 
     private fun startLogging() {
         isLogging = true
-        dataBuffer.clear() // 기존 데이터를 지웁니다.
         startBackgroundThreadForUSBReading()
+        startBackgroundThreadForGeospatialData()
     }
 
     private fun startBackgroundThreadForUSBReading() {
@@ -207,7 +210,7 @@ class HydroTrackARActivity : AppCompatActivity() {
                         val buffer = ByteArray(4096)
                         val numBytesRead = port.read(buffer, 1000)
                         val readData = String(buffer, 0, numBytesRead)
-                        dataBuffer.append(readData) // 데이터를 StringBuilder에 추가합니다.
+                        usbDataBuffer.append(readData) // 데이터를 StringBuilder에 추가합니다.
                     } catch (e: IOException) {
                         // 에러를 로그에 기록합니다.
                         Log.e(TAG, "Error reading from USB device: ${e.message}", e)
@@ -228,16 +231,51 @@ class HydroTrackARActivity : AppCompatActivity() {
         })
     }
 
+    private fun startBackgroundThreadForGeospatialData() {
+        backgroundThread = HandlerThread("GeospatialDataThread").also { it.start() }
+        backgroundHandler = Handler(backgroundThread.looper)
+
+        geospatialDataBuffer.append("latitude,longitude,horizontalAccuracy,altitude,verticalAccuracy,heading,headingAccuracy\n")
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (!isLogging) return
+
+                // Get the current geospatial pose from the renderer
+                val geospatialPose = renderer.getCurrentGeospatialPose()
+                geospatialPose?.let {
+                    val dataString = "${it.latitude},${it.longitude},${it.horizontalAccuracy},${it.altitude},${it.verticalAccuracy},${it.heading},${it.headingAccuracy}\n"
+                    geospatialDataBuffer.append(dataString)
+                }
+
+                // Post the next check one second later
+                backgroundHandler.postDelayed(this, 1000)
+            }
+        }
+
+        // Start the initial run
+        backgroundHandler.post(runnable)
+    }
+
     private fun stopLoggingAndSaveData() {
         isLogging = false
         if (backgroundHandler != null) {
             backgroundHandler.removeCallbacksAndMessages(null)
             backgroundThread.quitSafely()
         }
-        val data = dataBuffer.toString()
-        if (data.isNotEmpty()) {
-            saveDataToDownloadFolder(data)
+
+        val usbStringData = usbDataBuffer.toString()
+        if (usbStringData.isNotEmpty()) {
+            saveDataToDownloadFolder(usbStringData, "USB")
         }
+
+        val usbGeospatialStringData = geospatialDataBuffer.toString()
+        if (usbGeospatialStringData.isNotEmpty()) {
+            saveDataToDownloadFolder(usbGeospatialStringData, "DEVICE")
+        }
+
+        usbDataBuffer.clear() // clear data
+        geospatialDataBuffer.clear() // clear data
     }
 
     // Method to setup USB serial communication
@@ -383,23 +421,10 @@ class HydroTrackARActivity : AppCompatActivity() {
         return ""
     }
 
-    private fun startBackgroundThread() {
-        backgroundThread = HandlerThread("USBBackgroundThread").also { it.start() }
-        backgroundHandler = Handler(backgroundThread.looper)
-        backgroundHandler.post(object : Runnable {
-            override fun run() {
-                val data = readNmeaData()
-                if (data.isNotEmpty()) {
-                    saveDataToDownloadFolder(data)
-                }
-                backgroundHandler.postDelayed(this, 1000) // 1초 후에 다시 실행
-            }
-        })
-    }
 
-    private fun saveDataToDownloadFolder(data: String) {
+    private fun saveDataToDownloadFolder(data: String, type: String) {
         val fileName =
-            "USBData_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt"
+            "${type}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt"
         val resolver = applicationContext.contentResolver
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
@@ -426,7 +451,6 @@ class HydroTrackARActivity : AppCompatActivity() {
                 .show()
         }
     }
-
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
         val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")
