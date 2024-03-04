@@ -210,7 +210,9 @@ class HydroTrackARActivity : AppCompatActivity() {
                         val buffer = ByteArray(4096)
                         val numBytesRead = port.read(buffer, 1000)
                         val readData = String(buffer, 0, numBytesRead)
-                        usbDataBuffer.append(readData) // 데이터를 StringBuilder에 추가합니다.
+                        val currentTimeStamp = System.currentTimeMillis()
+                        val dataWithTimestamp = "$readData,$currentTimeStamp\n"
+                        usbDataBuffer.append(dataWithTimestamp) // 데이터를 StringBuilder에 추가합니다.
                     } catch (e: IOException) {
                         // 에러를 로그에 기록합니다.
                         Log.e(TAG, "Error reading from USB device: ${e.message}", e)
@@ -235,16 +237,17 @@ class HydroTrackARActivity : AppCompatActivity() {
         backgroundThread = HandlerThread("GeospatialDataThread").also { it.start() }
         backgroundHandler = Handler(backgroundThread.looper)
 
-        geospatialDataBuffer.append("latitude,longitude,horizontalAccuracy,altitude,verticalAccuracy,heading,headingAccuracy\n")
+        geospatialDataBuffer.append("timestamp,latitude,longitude,horizontalAccuracy,altitude,verticalAccuracy,heading,headingAccuracy\n")
 
         val runnable = object : Runnable {
             override fun run() {
                 if (!isLogging) return
 
                 // Get the current geospatial pose from the renderer
+                val currentTimeStamp = System.currentTimeMillis()
                 val geospatialPose = renderer.getCurrentGeospatialPose()
                 geospatialPose?.let {
-                    val dataString = "${it.latitude},${it.longitude},${it.horizontalAccuracy},${it.altitude},${it.verticalAccuracy},${it.heading},${it.headingAccuracy}\n"
+                    val dataString = "${it.latitude},${it.longitude},${it.horizontalAccuracy},${it.altitude},${it.verticalAccuracy},${it.heading},${it.headingAccuracy},$currentTimeStamp\n"
                     geospatialDataBuffer.append(dataString)
                 }
 
