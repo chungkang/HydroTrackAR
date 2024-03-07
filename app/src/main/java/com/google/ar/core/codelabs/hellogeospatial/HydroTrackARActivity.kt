@@ -209,10 +209,13 @@ class HydroTrackARActivity : AppCompatActivity() {
                     try {
                         val buffer = ByteArray(4096)
                         val numBytesRead = port.read(buffer, 1000)
-                        val readData = String(buffer, 0, numBytesRead)
+                        val readData:String? = String(buffer, 0, numBytesRead)
                         val currentTimeStamp = System.currentTimeMillis()
-                        val dataWithTimestamp = "$readData,$currentTimeStamp\n"
-                        usbDataBuffer.append(dataWithTimestamp) // 데이터를 StringBuilder에 추가합니다.
+                        // readData가 null이 아니고, 빈 문자열이 아닌 경우에만 실행합니다.
+                        if (!readData.isNullOrEmpty()) {
+                            val dataWithTimestamp = "$readData,$currentTimeStamp\n"
+                            usbDataBuffer.append(dataWithTimestamp) // 데이터를 StringBuilder에 추가합니다.
+                        }
                     } catch (e: IOException) {
                         // 에러를 로그에 기록합니다.
                         Log.e(TAG, "Error reading from USB device: ${e.message}", e)
@@ -237,7 +240,7 @@ class HydroTrackARActivity : AppCompatActivity() {
         backgroundThread = HandlerThread("GeospatialDataThread").also { it.start() }
         backgroundHandler = Handler(backgroundThread.looper)
 
-        geospatialDataBuffer.append("timestamp,latitude,longitude,horizontalAccuracy,altitude,verticalAccuracy,heading,headingAccuracy\n")
+        geospatialDataBuffer.append("latitude,longitude,horizontalAccuracy,altitude,verticalAccuracy,heading,headingAccuracy,timestamp\n")
 
         val runnable = object : Runnable {
             override fun run() {
