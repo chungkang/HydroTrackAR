@@ -218,10 +218,18 @@ class HydroTrackARActivity : AppCompatActivity() {
                                 val gpggaParts = readData.split(',')
                                 if (gpggaParts.size > 5) {
                                     val lat = gpggaParts[2] // 위도 값
+                                    val latDirection = gpggaParts[3] // 위도 방향 (N or S)
                                     val lon = gpggaParts[4] // 경도 값
+                                    val lonDirection = gpggaParts[5] // 경도 방향 (E or W)
                                     if (lat.isNotEmpty() && lon.isNotEmpty()) {
-                                        val usbLatLon = "usb: ${parseNmeaToDecimal(lat, gpggaParts[3])}, ${parseNmeaToDecimal(lon, gpggaParts[5])}"
+                                        val usbLatLon = "usb: ${parseNmeaToDecimal(lat, latDirection)}, ${parseNmeaToDecimal(lon, lonDirection)}"
                                         view.usbLatLon = usbLatLon // View의 usbLatLon 변수 업데이트
+
+                                        val latitude = parseNmeaToDecimal(lat, latDirection)
+                                        val longitude = parseNmeaToDecimal(lon, lonDirection)
+
+                                        // HydroTrackARView에 마커 위치 업데이트 요청
+                                        view.updateMarkerLocation(latitude, longitude)
                                     }
                                 }
                             }
@@ -469,11 +477,26 @@ class HydroTrackARActivity : AppCompatActivity() {
     }
 
     fun parseNmeaToDecimal(nmeaValue: String, direction: String): Double {
-        val degrees = nmeaValue.substring(0, if (nmeaValue.contains(".")) 2 else 3).toDouble()
-        val minutes = nmeaValue.substring(if (nmeaValue.contains(".")) 2 else 3).toDouble()
-        val decimal = degrees + minutes / 60
+        val degrees: Double
+        val minutes: Double
+
+        if (direction == "N" || direction == "S") {
+            // 위도: DDMM.MMMMM 형식
+            degrees = nmeaValue.substring(0, 2).toDouble()
+            minutes = nmeaValue.substring(2).toDouble()
+        } else {
+            // 경도: DDDMM.MMMMM 형식
+            degrees = nmeaValue.substring(0, 3).toDouble()
+            minutes = nmeaValue.substring(3).toDouble()
+        }
+
+        // 분을 도로 변환하고, 전체 값을 십진수 형태로 계산
+        val decimal = degrees + (minutes / 60)
+
+        // 방향에 따라 값 조정: 남위(S)와 서경(W)은 음수
         return if (direction == "S" || direction == "W") -decimal else decimal
     }
+
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {
         val pattern = Pattern.compile("""\$\GPGGA,[^,]*,([0-9.]+),([NS]),([0-9.]+),([EW]),""")

@@ -24,7 +24,10 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.ar.core.Earth
 import com.google.ar.core.GeospatialPose
 import com.google.ar.core.codelabs.hellogeospatial.HydroTrackARActivity
@@ -57,6 +60,8 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
         }
 
     var usbLatLon: String? = null
+
+    private var currentMarker: Marker? = null
 
     private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
@@ -111,4 +116,21 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
     override fun onPause(owner: LifecycleOwner) {
         surfaceView.onPause()
     }
+
+    fun updateMarkerLocation(latitude: Double, longitude: Double) {
+        val newPosition = LatLng(latitude, longitude)
+        activity.runOnUiThread {
+            mapView?.googleMap?.let { googleMap ->
+                // 기존에 추가된 마커가 있다면 제거
+                currentMarker?.remove()
+
+                // 새로운 마커 추가
+                currentMarker = googleMap.addMarker(
+                    MarkerOptions().position(newPosition).title("USB GNSS Position")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))) // 빨간색으로 설정
+//                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPosition, 15f)) // 카메라를 마커 위치로 이동하고 줌 설정
+            }
+        }
+    }
+
 }
