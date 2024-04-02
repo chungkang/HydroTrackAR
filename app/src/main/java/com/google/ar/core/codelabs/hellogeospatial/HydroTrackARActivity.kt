@@ -213,6 +213,18 @@ class HydroTrackARActivity : AppCompatActivity() {
                         // readData가 null이 아니고, 빈 문자열이 아닌 경우에만 실행합니다.
                         if (!readData.isNullOrEmpty()) {
                             usbDataBuffer.append(readData) // 데이터를 StringBuilder에 추가합니다.
+
+                            if (!readData.isNullOrEmpty() && readData.startsWith("\$GPGGA")) {
+                                val gpggaParts = readData.split(',')
+                                if (gpggaParts.size > 5) {
+                                    val lat = gpggaParts[2] // 위도 값
+                                    val lon = gpggaParts[4] // 경도 값
+                                    if (lat.isNotEmpty() && lon.isNotEmpty()) {
+                                        val usbLatLon = "usb: ${parseNmeaToDecimal(lat, gpggaParts[3])}, ${parseNmeaToDecimal(lon, gpggaParts[5])}"
+                                        view.usbLatLon = usbLatLon // View의 usbLatLon 변수 업데이트
+                                    }
+                                }
+                            }
                         }
                     } catch (e: IOException) {
                         // 에러를 로그에 기록합니다.
@@ -454,6 +466,13 @@ class HydroTrackARActivity : AppCompatActivity() {
             Toast.makeText(this, "Unexpected error: ${e.localizedMessage}", Toast.LENGTH_SHORT)
                 .show()
         }
+    }
+
+    fun parseNmeaToDecimal(nmeaValue: String, direction: String): Double {
+        val degrees = nmeaValue.substring(0, if (nmeaValue.contains(".")) 2 else 3).toDouble()
+        val minutes = nmeaValue.substring(if (nmeaValue.contains(".")) 2 else 3).toDouble()
+        val decimal = degrees + minutes / 60
+        return if (direction == "S" || direction == "W") -decimal else decimal
     }
 
     fun parseNmeaData(nmeaData: String): Pair<Double?, Double?> {

@@ -56,6 +56,8 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
             it.getMapAsync { googleMap -> mapView = MapView(activity, googleMap) }
         }
 
+    var usbLatLon: String? = null
+
     private val statusText: TextView = root.findViewById<TextView>(R.id.statusText)
     fun updateStatusText(earth: Earth, cameraGeospatialPose: GeospatialPose?) {
         activity.runOnUiThread {
@@ -87,7 +89,10 @@ class HydroTrackARView(val activity: HydroTrackARActivity) : DefaultLifecycleObs
                 }
             }
             // Update status text with earth state, USB devices
-            statusText.text = "$earthStateText\n$usbDevicesText"
+//            statusText.text = "$earthStateText\n$usbDevicesText"
+            // USB 위치 정보가 있으면 상태 텍스트에 추가
+            val usbInfoText = usbLatLon?.let { "\n$it" } ?: ""
+            statusText.text = "$earthStateText$usbInfoText"
         }
 
     }
